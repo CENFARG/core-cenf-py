@@ -22,6 +22,15 @@ from core_infrastructure.common.context import (
     set_tenant_id,
     set_trace_id,
 )
+from core_infrastructure.common.errors import (
+    AuthError,
+    CenfError,
+    ErrorType,
+    PermanentError,
+    RateLimitError,
+    TransientError,
+    ValidationError,
+)
 
 __all__ = [
     # context
@@ -37,4 +46,12 @@ __all__ = [
     "set_span_id",
     "set_tenant_id",
     "set_trace_id",
+    # errors
+    "AuthError",
+    "CenfError",
+    "ErrorType",
+    "PermanentError",
+    "RateLimitError",
+    "TransientError",
+    "ValidationError",
 ]

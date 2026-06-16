@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+eggs/
+*.egg
+.venv/
+venv/
+.env
+.env.*
+
+# UV
+uv.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets & Credentials (only credential files, not source code directories)
+*.pem
+*.key
+*.crt
+credentials.*
+secrets.*
+**/.secrets/**
+**/.credentials/**
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+*.log
+logs/
+
+# CodeGraph
+.codegraph/
+
+# Docusaurus
+docs/.docusaurus/
+docs/build/
+docs/node_modules/

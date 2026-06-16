@@ -23,12 +23,14 @@ from core_infrastructure.common.context import (
     ContextValidation,
     get_context_snapshot,
     get_correlation_id,
+    get_principal_id,
     get_span_id,
     get_tenant_id,
     get_trace_id,
     new_correlation_id,
     restore_context_snapshot,
     set_correlation_id,
+    set_principal_id,
     set_span_id,
     set_tenant_id,
     set_trace_id,
@@ -60,19 +62,33 @@ from core_infrastructure.observability.adapters.noop_observability_adapter impor
 from core_infrastructure.observability.adapters.otel_adapter import OTelAdapter
 from core_infrastructure.observability.models import ObservabilitySettings
 from core_infrastructure.observability.ports import ObservabilityManager
+from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
+from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
+from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
+from core_infrastructure.errors.ports import ErrorHandlingManager
+from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
+from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdapter
+from core_infrastructure.auth.models import AuthConfig, TokenClaims
+from core_infrastructure.auth.ports import AuthManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
     "AsyncLifecycle",
+    "AuthConfig",
     "AuthError",
     "AuthManager",
     "CacheManager",
+    "CapturingErrorAdapter",
     "CenfError",
+    "ClassificationAdapter",
     "ConfigManager",
     "ContextValidation",
     "CoreSettings",
     "DatabaseManager",
+    "ErrorClassification",
+    "ErrorContext",
     "ErrorHandlingManager",
+    "ErrorReport",
     "ErrorType",
     "ExternalAPIManager",
     "FeatureFlagManager",
@@ -81,6 +97,7 @@ __all__ = [
     "InMemoryConfigAdapter",
     "InMemoryLoggerAdapter",
     "InMemoryObservabilityAdapter",
+    "JwtAuthAdapter",
     "LifecycleManager",
     "LoggerManager",
     "LoggerSettings",
@@ -92,18 +109,22 @@ __all__ = [
     "PydanticConfigAdapter",
     "RateLimitError",
     "SecretManager",
+    "StaticAuthAdapter",
     "StructlogAdapter",
     "TaskQueueManager",
+    "TokenClaims",
     "TransientError",
     "ValidationError",
     "get_context_snapshot",
     "get_correlation_id",
+    "get_principal_id",
     "get_span_id",
     "get_tenant_id",
     "get_trace_id",
     "new_correlation_id",
     "restore_context_snapshot",
     "set_correlation_id",
+    "set_principal_id",
     "set_span_id",
     "set_tenant_id",
     "set_trace_id",

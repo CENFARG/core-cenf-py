@@ -25,6 +25,7 @@ from pydantic import BaseModel, Field
 
 _correlation_id: ContextVar[str] = ContextVar("cenf_correlation_id", default="system-init")
 _tenant_id: ContextVar[str] = ContextVar("cenf_tenant_id", default="global")
+_principal_id: ContextVar[str] = ContextVar("cenf_principal_id", default="")
 _trace_id: ContextVar[str] = ContextVar("cenf_trace_id", default="")
 _span_id: ContextVar[str] = ContextVar("cenf_span_id", default="")
 
@@ -72,6 +73,24 @@ def set_tenant_id(tid: str) -> None:
         tid: New tenant_id string (1-64 chars).
     """
     _tenant_id.set(tid)
+
+
+def get_principal_id() -> str:
+    """Return the current principal_id or empty string.
+
+    Returns:
+        str: Current principal_id context value.
+    """
+    return _principal_id.get()
+
+
+def set_principal_id(pid: str) -> None:
+    """Set the principal_id contextvar.
+
+    Args:
+        pid: New principal_id string (1-64 chars).
+    """
+    _principal_id.set(pid)
 
 
 def get_trace_id() -> str:
@@ -130,6 +149,7 @@ def get_context_snapshot() -> dict[str, str]:
     return {
         "correlation_id": get_correlation_id(),
         "tenant_id": get_tenant_id(),
+        "principal_id": get_principal_id(),
         "trace_id": get_trace_id(),
         "span_id": get_span_id(),
     }
@@ -149,6 +169,8 @@ def restore_context_snapshot(snapshot: dict[str, str]) -> None:
         set_correlation_id(snapshot["correlation_id"])
     if "tenant_id" in snapshot:
         set_tenant_id(snapshot["tenant_id"])
+    if "principal_id" in snapshot:
+        set_principal_id(snapshot["principal_id"])
     if "trace_id" in snapshot:
         set_trace_id(snapshot["trace_id"])
     if "span_id" in snapshot:
@@ -200,6 +222,11 @@ class ContextValidation(BaseModel):
         min_length=1,
         max_length=64,
         description="Multi-tenant identifier for data isolation.",
+    )
+    principal_id: str = Field(
+        default="",
+        max_length=64,
+        description="Principal identifier for audit trails.",
     )
     trace_id: str = Field(
         default="",

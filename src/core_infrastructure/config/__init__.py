@@ -13,10 +13,14 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
+from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
+from core_infrastructure.config.adapters.pydantic_config_adapter import PydanticConfigAdapter
 from core_infrastructure.config.models import CoreSettings
 from core_infrastructure.config.ports import ConfigManager
 
 __all__ = [
     "ConfigManager",
     "CoreSettings",
+    "InMemoryConfigAdapter",
+    "PydanticConfigAdapter",
 ]

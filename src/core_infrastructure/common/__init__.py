@@ -34,8 +34,17 @@ from core_infrastructure.common.errors import (
 from core_infrastructure.common.lifecycle import AsyncLifecycle, HealthStatus, LifecycleManager
 
 __all__ = [
-    # context
+    "AsyncLifecycle",
+    "AuthError",
+    "CenfError",
     "ContextValidation",
+    "ErrorType",
+    "HealthStatus",
+    "LifecycleManager",
+    "PermanentError",
+    "RateLimitError",
+    "TransientError",
+    "ValidationError",
     "get_context_snapshot",
     "get_correlation_id",
     "get_span_id",
@@ -47,16 +56,4 @@ __all__ = [
     "set_span_id",
     "set_tenant_id",
     "set_trace_id",
-    # errors
-    "AuthError",
-    "CenfError",
-    "ErrorType",
-    "PermanentError",
-    "RateLimitError",
-    "TransientError",
-    "ValidationError",
-    # lifecycle
-    "AsyncLifecycle",
-    "HealthStatus",
-    "LifecycleManager",
 ]

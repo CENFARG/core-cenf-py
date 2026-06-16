@@ -82,9 +82,31 @@ from core_infrastructure.filestorage.adapters.local_storage_adapter import Local
 from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
 from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
 from core_infrastructure.filestorage.ports import FileStorageManager
+from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
+    MemoryTaskQueueAdapter,
+)
+from core_infrastructure.taskqueue.models import Job, JobRef, JobStatus, QueueConfig
+from core_infrastructure.taskqueue.ports import TaskQueueManager
+from core_infrastructure.external_api.adapters.mock_http_adapter import MockHTTPAdapter
+from core_infrastructure.external_api.adapters.resilient_http_adapter import (
+    ResilientHTTPAdapter,
+)
+from core_infrastructure.external_api.models import (
+    ApiResponse,
+    CircuitState,
+    RequestConfig,
+    RetryPolicy,
+)
+from core_infrastructure.external_api.ports import ExternalAPIManager
+from core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter import (
+    MemoryFeatureFlagAdapter,
+)
+from core_infrastructure.feature_flags.models import FeatureFlag, FlagConfig, FlagContext
+from core_infrastructure.feature_flags.ports import FeatureFlagManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
+    "ApiResponse",
     "AsyncLifecycle",
     "AuthConfig",
     "AuthError",
@@ -94,6 +116,7 @@ __all__ = [
     "CacheManager",
     "CapturingErrorAdapter",
     "CenfError",
+    "CircuitState",
     "ClassificationAdapter",
     "ConfigManager",
     "ContextValidation",
@@ -106,14 +129,20 @@ __all__ = [
     "ErrorReport",
     "ErrorType",
     "ExternalAPIManager",
+    "FeatureFlag",
     "FeatureFlagManager",
     "FileRef",
     "FileStorageManager",
+    "FlagConfig",
+    "FlagContext",
     "GenericRepository",
     "HealthStatus",
     "InMemoryConfigAdapter",
     "InMemoryLoggerAdapter",
     "InMemoryObservabilityAdapter",
+    "Job",
+    "JobRef",
+    "JobStatus",
     "JwtAuthAdapter",
     "LifecycleManager",
     "LocalStorageAdapter",
@@ -121,7 +150,10 @@ __all__ = [
     "LoggerSettings",
     "MemoryCacheAdapter",
     "MemoryDatabaseAdapter",
+    "MemoryFeatureFlagAdapter",
     "MemoryStorageAdapter",
+    "MemoryTaskQueueAdapter",
+    "MockHTTPAdapter",
     "NoopObservabilityAdapter",
     "OTelAdapter",
     "ObservabilityManager",
@@ -129,9 +161,13 @@ __all__ = [
     "PaginatedResult",
     "PermanentError",
     "PydanticConfigAdapter",
+    "QueueConfig",
     "RateLimitError",
     "RedisCacheAdapter",
     "RepositoryQuery",
+    "RequestConfig",
+    "ResilientHTTPAdapter",
+    "RetryPolicy",
     "SQLAlchemyAdapter",
     "SecretManager",
     "StampedeConfig",

@@ -82,6 +82,7 @@ select = [
 ]
 ignore = [
     "E501", # line-too-long (handled by formatter)
+    "ASYNC109", # timeout parameter in async HTTP clients is intentional
 ]
 
 [tool.ruff.lint.per-file-ignores]

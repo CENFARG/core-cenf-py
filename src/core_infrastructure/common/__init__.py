@@ -31,6 +31,7 @@ from core_infrastructure.common.errors import (
     TransientError,
     ValidationError,
 )
+from core_infrastructure.common.lifecycle import AsyncLifecycle, HealthStatus, LifecycleManager
 
 __all__ = [
     # context
@@ -54,4 +55,8 @@ __all__ = [
     "RateLimitError",
     "TransientError",
     "ValidationError",
+    # lifecycle
+    "AsyncLifecycle",
+    "HealthStatus",
+    "LifecycleManager",
 ]

@@ -47,6 +47,19 @@ from core_infrastructure.config.adapters.in_memory_config_adapter import InMemor
 from core_infrastructure.config.adapters.pydantic_config_adapter import PydanticConfigAdapter
 from core_infrastructure.config.models import CoreSettings
 from core_infrastructure.config.ports import ConfigManager
+from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
+from core_infrastructure.logger.adapters.structlog_adapter import StructlogAdapter
+from core_infrastructure.logger.models import LoggerSettings
+from core_infrastructure.logger.ports import LoggerManager
+from core_infrastructure.observability.adapters.in_memory_observability_adapter import (
+    InMemoryObservabilityAdapter,
+)
+from core_infrastructure.observability.adapters.noop_observability_adapter import (
+    NoopObservabilityAdapter,
+)
+from core_infrastructure.observability.adapters.otel_adapter import OTelAdapter
+from core_infrastructure.observability.models import ObservabilitySettings
+from core_infrastructure.observability.ports import ObservabilityManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
@@ -66,13 +79,20 @@ __all__ = [
     "FileStorageManager",
     "HealthStatus",
     "InMemoryConfigAdapter",
+    "InMemoryLoggerAdapter",
+    "InMemoryObservabilityAdapter",
     "LifecycleManager",
     "LoggerManager",
+    "LoggerSettings",
+    "NoopObservabilityAdapter",
+    "OTelAdapter",
     "ObservabilityManager",
+    "ObservabilitySettings",
     "PermanentError",
     "PydanticConfigAdapter",
     "RateLimitError",
     "SecretManager",
+    "StructlogAdapter",
     "TaskQueueManager",
     "TransientError",
     "ValidationError",

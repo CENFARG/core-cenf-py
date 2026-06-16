@@ -70,6 +70,18 @@ from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
 from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdapter
 from core_infrastructure.auth.models import AuthConfig, TokenClaims
 from core_infrastructure.auth.ports import AuthManager
+from core_infrastructure.cache.adapters.memory_cache_adapter import MemoryCacheAdapter
+from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+from core_infrastructure.cache.models import CacheConfig, CacheEntry, StampedeConfig
+from core_infrastructure.cache.ports import CacheManager
+from core_infrastructure.database.adapters.memory_database_adapter import MemoryDatabaseAdapter
+from core_infrastructure.database.adapters.sqlalchemy_adapter import SQLAlchemyAdapter
+from core_infrastructure.database.models import DatabaseConfig, PaginatedResult, RepositoryQuery
+from core_infrastructure.database.ports import DatabaseManager, GenericRepository, TransactionScope
+from core_infrastructure.filestorage.adapters.local_storage_adapter import LocalStorageAdapter
+from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
+from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
+from core_infrastructure.filestorage.ports import FileStorageManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
@@ -77,6 +89,8 @@ __all__ = [
     "AuthConfig",
     "AuthError",
     "AuthManager",
+    "CacheConfig",
+    "CacheEntry",
     "CacheManager",
     "CapturingErrorAdapter",
     "CenfError",
@@ -84,6 +98,7 @@ __all__ = [
     "ConfigManager",
     "ContextValidation",
     "CoreSettings",
+    "DatabaseConfig",
     "DatabaseManager",
     "ErrorClassification",
     "ErrorContext",
@@ -92,28 +107,42 @@ __all__ = [
     "ErrorType",
     "ExternalAPIManager",
     "FeatureFlagManager",
+    "FileRef",
     "FileStorageManager",
+    "GenericRepository",
     "HealthStatus",
     "InMemoryConfigAdapter",
     "InMemoryLoggerAdapter",
     "InMemoryObservabilityAdapter",
     "JwtAuthAdapter",
     "LifecycleManager",
+    "LocalStorageAdapter",
     "LoggerManager",
     "LoggerSettings",
+    "MemoryCacheAdapter",
+    "MemoryDatabaseAdapter",
+    "MemoryStorageAdapter",
     "NoopObservabilityAdapter",
     "OTelAdapter",
     "ObservabilityManager",
     "ObservabilitySettings",
+    "PaginatedResult",
     "PermanentError",
     "PydanticConfigAdapter",
     "RateLimitError",
+    "RedisCacheAdapter",
+    "RepositoryQuery",
+    "SQLAlchemyAdapter",
     "SecretManager",
+    "StampedeConfig",
     "StaticAuthAdapter",
+    "StorageConfig",
     "StructlogAdapter",
     "TaskQueueManager",
     "TokenClaims",
+    "TransactionScope",
     "TransientError",
+    "UploadResult",
     "ValidationError",
     "get_context_snapshot",
     "get_correlation_id",

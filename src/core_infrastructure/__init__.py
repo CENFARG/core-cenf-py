@@ -19,6 +19,15 @@ Managers incluidos:
 - FeatureFlagManager: Activación dinámica en runtime
 """
 
+from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
+from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdapter
+from core_infrastructure.auth.models import AuthConfig, TokenClaims
+from core_infrastructure.auth.ports import AuthManager
+from core_infrastructure.bootstrap import BootstrapOrchestrator
+from core_infrastructure.cache.adapters.memory_cache_adapter import MemoryCacheAdapter
+from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+from core_infrastructure.cache.models import CacheConfig, CacheEntry, StampedeConfig
+from core_infrastructure.cache.ports import CacheManager
 from core_infrastructure.common.context import (
     ContextValidation,
     get_context_snapshot,
@@ -49,44 +58,14 @@ from core_infrastructure.config.adapters.in_memory_config_adapter import InMemor
 from core_infrastructure.config.adapters.pydantic_config_adapter import PydanticConfigAdapter
 from core_infrastructure.config.models import CoreSettings
 from core_infrastructure.config.ports import ConfigManager
-from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
-from core_infrastructure.logger.adapters.structlog_adapter import StructlogAdapter
-from core_infrastructure.logger.models import LoggerSettings
-from core_infrastructure.logger.ports import LoggerManager
-from core_infrastructure.observability.adapters.in_memory_observability_adapter import (
-    InMemoryObservabilityAdapter,
-)
-from core_infrastructure.observability.adapters.noop_observability_adapter import (
-    NoopObservabilityAdapter,
-)
-from core_infrastructure.observability.adapters.otel_adapter import OTelAdapter
-from core_infrastructure.observability.models import ObservabilitySettings
-from core_infrastructure.observability.ports import ObservabilityManager
-from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
-from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
-from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
-from core_infrastructure.errors.ports import ErrorHandlingManager
-from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
-from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdapter
-from core_infrastructure.auth.models import AuthConfig, TokenClaims
-from core_infrastructure.auth.ports import AuthManager
-from core_infrastructure.cache.adapters.memory_cache_adapter import MemoryCacheAdapter
-from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
-from core_infrastructure.cache.models import CacheConfig, CacheEntry, StampedeConfig
-from core_infrastructure.cache.ports import CacheManager
 from core_infrastructure.database.adapters.memory_database_adapter import MemoryDatabaseAdapter
 from core_infrastructure.database.adapters.sqlalchemy_adapter import SQLAlchemyAdapter
 from core_infrastructure.database.models import DatabaseConfig, PaginatedResult, RepositoryQuery
 from core_infrastructure.database.ports import DatabaseManager, GenericRepository, TransactionScope
-from core_infrastructure.filestorage.adapters.local_storage_adapter import LocalStorageAdapter
-from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
-from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
-from core_infrastructure.filestorage.ports import FileStorageManager
-from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
-    MemoryTaskQueueAdapter,
-)
-from core_infrastructure.taskqueue.models import Job, JobRef, JobStatus, QueueConfig
-from core_infrastructure.taskqueue.ports import TaskQueueManager
+from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
+from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
+from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
+from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.external_api.adapters.mock_http_adapter import MockHTTPAdapter
 from core_infrastructure.external_api.adapters.resilient_http_adapter import (
     ResilientHTTPAdapter,
@@ -103,6 +82,36 @@ from core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter impo
 )
 from core_infrastructure.feature_flags.models import FeatureFlag, FlagConfig, FlagContext
 from core_infrastructure.feature_flags.ports import FeatureFlagManager
+from core_infrastructure.filestorage.adapters.local_storage_adapter import LocalStorageAdapter
+from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
+from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
+from core_infrastructure.filestorage.ports import FileStorageManager
+from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
+from core_infrastructure.logger.adapters.structlog_adapter import StructlogAdapter
+from core_infrastructure.logger.models import LoggerSettings
+from core_infrastructure.logger.ports import LoggerManager
+from core_infrastructure.observability.adapters.in_memory_observability_adapter import (
+    InMemoryObservabilityAdapter,
+)
+from core_infrastructure.observability.adapters.noop_observability_adapter import (
+    NoopObservabilityAdapter,
+)
+from core_infrastructure.observability.adapters.otel_adapter import OTelAdapter
+from core_infrastructure.observability.models import ObservabilitySettings
+from core_infrastructure.observability.ports import ObservabilityManager
+from core_infrastructure.secrets.adapters.encrypted_secret_adapter import (
+    EncryptedSecretAdapter,
+)
+from core_infrastructure.secrets.adapters.in_memory_secret_adapter import (
+    InMemorySecretAdapter,
+)
+from core_infrastructure.secrets.models import SecretConfig, SecretRef, SecretValue
+from core_infrastructure.secrets.ports import SecretManager
+from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
+    MemoryTaskQueueAdapter,
+)
+from core_infrastructure.taskqueue.models import Job, JobRef, JobStatus, QueueConfig
+from core_infrastructure.taskqueue.ports import TaskQueueManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
@@ -111,6 +120,7 @@ __all__ = [
     "AuthConfig",
     "AuthError",
     "AuthManager",
+    "BootstrapOrchestrator",
     "CacheConfig",
     "CacheEntry",
     "CacheManager",
@@ -123,6 +133,7 @@ __all__ = [
     "CoreSettings",
     "DatabaseConfig",
     "DatabaseManager",
+    "EncryptedSecretAdapter",
     "ErrorClassification",
     "ErrorContext",
     "ErrorHandlingManager",
@@ -140,6 +151,7 @@ __all__ = [
     "InMemoryConfigAdapter",
     "InMemoryLoggerAdapter",
     "InMemoryObservabilityAdapter",
+    "InMemorySecretAdapter",
     "Job",
     "JobRef",
     "JobStatus",
@@ -169,7 +181,10 @@ __all__ = [
     "ResilientHTTPAdapter",
     "RetryPolicy",
     "SQLAlchemyAdapter",
+    "SecretConfig",
     "SecretManager",
+    "SecretRef",
+    "SecretValue",
     "StampedeConfig",
     "StaticAuthAdapter",
     "StorageConfig",

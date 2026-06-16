@@ -17,6 +17,10 @@ from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdap
 from core_infrastructure.auth.models import TokenClaims
 from core_infrastructure.bootstrap import BootstrapOrchestrator
 from core_infrastructure.cache.adapters.memory_cache_adapter import MemoryCacheAdapter
+from core_infrastructure.common.context import (
+    get_context_snapshot,
+    restore_context_snapshot,
+)
 from core_infrastructure.common.lifecycle import AsyncLifecycle, HealthStatus
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
 from core_infrastructure.database.adapters.memory_database_adapter import MemoryDatabaseAdapter
@@ -30,6 +34,18 @@ from core_infrastructure.observability.adapters.in_memory_observability_adapter 
 )
 from core_infrastructure.secrets.adapters.in_memory_secret_adapter import InMemorySecretAdapter
 from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import MemoryTaskQueueAdapter
+
+# ---------------------------------------------------------------------------
+# Context cleanup — prevents test isolation leaks from contextvars
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _reset_contextvars() -> None:
+    """Save and restore contextvars around each test to prevent cross-test pollution."""
+    snapshot = get_context_snapshot()
+    yield
+    restore_context_snapshot(snapshot)
 
 
 # Reuse the same _LifecycleWrapper from unit conftest (or duplicate for independence)

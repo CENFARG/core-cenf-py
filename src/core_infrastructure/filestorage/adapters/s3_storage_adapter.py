@@ -12,9 +12,10 @@ Version: 0.1.0
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
-from aiobotocore.session import AioSession
-from botocore.exceptions import ClientError
+from aiobotocore.session import AioSession  # type: ignore[import-untyped]
+from botocore.exceptions import ClientError  # type: ignore[import-untyped]
 
 from core_infrastructure.common.errors import TransientError
 from core_infrastructure.config.ports import ConfigManager
@@ -56,14 +57,14 @@ class S3StorageAdapter:
         self._session = session
         self._client = None  # Created lazily via _get_client
 
-    async def _get_client(self):
+    async def _get_client(self) -> Any:
         """Get or create the aiobotocore S3 client.
 
         Returns:
             The aiobotocore S3 client instance.
         """
         if self._client is None:
-            client_kwargs: dict = {"service_name": "s3", "region_name": self._region}
+            client_kwargs: dict[str, Any] = {"service_name": "s3", "region_name": self._region}
             if self._endpoint_url:
                 client_kwargs["endpoint_url"] = self._endpoint_url
             client_ctx = await self._session.create_client(**client_kwargs)
@@ -137,7 +138,7 @@ class S3StorageAdapter:
             ) from exc
 
         body = result["Body"]
-        return await body.read()
+        return await body.read()  # type: ignore[no-any-return]
 
     async def delete(self, bucket: str, key: str) -> None:
         """Delete an object from S3.
@@ -201,7 +202,7 @@ class S3StorageAdapter:
                 Params={"Bucket": bucket, "Key": key},
                 ExpiresIn=expiry,
             )
-            return url
+            return url  # type: ignore[no-any-return]
         except Exception as exc:
             raise TransientError(
                 f"S3 pre-signed URL generation failed: {bucket}/{key}",

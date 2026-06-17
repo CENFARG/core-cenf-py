@@ -15,6 +15,7 @@ Version: 0.1.0
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
 from gcloud.aio.storage import Storage
 
@@ -62,7 +63,7 @@ class GcsStorageAdapter:
         self._project = config.get_string("filestorage.gcs.project")
         self._credentials_path = config.get_string("filestorage.gcs.credentials_path", default_value="") or None
 
-        self._client = Storage(project=self._project)
+        self._client = Storage()
 
     # ------------------------------------------------------------------
     # Public API — FileStorageManager Protocol
@@ -147,8 +148,9 @@ class GcsStorageAdapter:
             bool: ``True`` if the object exists.
         """
         try:
-            objects = await self._client.list_objects(bucket, prefix=key)
-            return any(obj.get("name") == key for obj in objects)
+            objects = await self._client.list_objects(bucket, params={"prefix": key})
+            items: list[dict[str, Any]] = objects.get("items", [])
+            return any(obj.get("name") == key for obj in items)
         except Exception:
             return False
 
@@ -172,7 +174,7 @@ class GcsStorageAdapter:
             PermanentError: If URL generation fails.
         """
         try:
-            return await self._client.get_download_url(bucket, key, expiration=expiry)
+            return await self._client.get_download_url(bucket, key, expiration=expiry)  # type: ignore[attr-defined, no-any-return]
         except Exception as exc:
             raise PermanentError(
                 f"GCS pre-signed URL generation failed: {bucket}/{key}",
@@ -194,12 +196,13 @@ class GcsStorageAdapter:
             list[FileRef]: List of object references.
         """
         try:
-            objects = await self._client.list_objects(bucket, prefix=prefix)
+            objects = await self._client.list_objects(bucket, params={"prefix": prefix})
         except Exception:
             return []
 
+        items: list[dict[str, Any]] = objects.get("items", [])
         results: list[FileRef] = []
-        for obj in objects:
+        for obj in items:
             ref = FileRef(
                 bucket=bucket,
                 key=obj.get("name", ""),

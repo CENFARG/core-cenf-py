@@ -97,7 +97,7 @@ class RedisCacheAdapter(CacheManager):
         """
         import redis.asyncio as aioredis
 
-        pool = aioredis.ConnectionPool.from_url(url)
+        pool: aioredis.ConnectionPool = aioredis.ConnectionPool.from_url(url)  # type: ignore[type-arg]
         client = aioredis.Redis(connection_pool=pool)
         await client.ping()
         return client
@@ -148,7 +148,7 @@ class RedisCacheAdapter(CacheManager):
     # Public API — CacheManager Protocol
     # ------------------------------------------------------------------
 
-    def get(self, key: str) -> Any:  # type: ignore[override]
+    def get(self, key: str) -> Any:
         """Retrieve a value from Redis.
 
         If Redis is in fallback mode (init failure), reads from in-memory dict.
@@ -175,7 +175,7 @@ class RedisCacheAdapter(CacheManager):
             raw = raw.decode("utf-8")
         return json.loads(raw) if isinstance(raw, str) else raw
 
-    def set(self, key: str, value: Any, ttl: int | None = None) -> None:  # type: ignore[override]
+    def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         """Store a value in Redis with an optional TTL.
 
         Falls back to in-memory dict only if Redis init failed.
@@ -200,7 +200,7 @@ class RedisCacheAdapter(CacheManager):
 
         self._run_redis(lambda: self._redis.set(prefixed, payload, ex=resolved_ttl))
 
-    def delete(self, key: str) -> None:  # type: ignore[override]
+    def delete(self, key: str) -> None:
         """Remove an entry from Redis.
 
         Idempotent — deleting a non-existent key succeeds silently.
@@ -220,7 +220,7 @@ class RedisCacheAdapter(CacheManager):
 
         self._run_redis(lambda: self._redis.delete(prefixed))
 
-    def exists(self, key: str) -> bool:  # type: ignore[override]
+    def exists(self, key: str) -> bool:
         """Check if a key exists in Redis.
 
         Falls back to in-memory dict only if Redis init failed.
@@ -242,7 +242,7 @@ class RedisCacheAdapter(CacheManager):
         result = self._run_redis(lambda: self._redis.exists(prefixed))
         return bool(result)
 
-    def clear(self) -> None:  # type: ignore[override]
+    def clear(self) -> None:
         """Remove ALL entries from Redis via ``FLUSHDB``.
 
         CAUTION: ``FLUSHDB`` clears ALL keys in the current Redis database.
@@ -256,7 +256,7 @@ class RedisCacheAdapter(CacheManager):
 
         self._run_redis(lambda: self._redis.flushdb())
 
-    def get_or_set(self, key: str, factory: Callable[[], Any], ttl: int | None = None) -> Any:  # type: ignore[override]
+    def get_or_set(self, key: str, factory: Callable[[], Any], ttl: int | None = None) -> Any:
         """Get a value from cache or compute and cache it.
 
         Args:

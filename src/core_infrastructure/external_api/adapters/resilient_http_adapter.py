@@ -157,7 +157,7 @@ class ResilientHTTPAdapter:
         """
         import json as _json
 
-        effective_timeout = timeout if timeout is not None else self._default_timeout
+        effective_timeout = timeout or self._default_timeout
         start = _time.monotonic()
 
         try:

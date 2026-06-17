@@ -102,7 +102,8 @@ class ImportlibDependencyAdapter:
             AttributeError: If the class is not in the module.
         """
         module = importlib.import_module(module_path)
-        return getattr(module, class_name)
+        result = getattr(module, class_name)
+        return result  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
     # Public API — DependencyManager Protocol

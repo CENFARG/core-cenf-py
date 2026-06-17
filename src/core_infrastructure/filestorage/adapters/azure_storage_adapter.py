@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 from azure.storage.blob import (
     BlobSasPermissions,
@@ -58,7 +59,7 @@ class AzureStorageAdapter:
 
         self._service_client = BlobServiceClient.from_connection_string(connection_string)
 
-    def _get_blob_client(self, bucket: str, key: str):
+    def _get_blob_client(self, bucket: str, key: str) -> Any:
         """Get a blob client for the given container and blob name.
 
         Args:
@@ -71,7 +72,7 @@ class AzureStorageAdapter:
         container_client = self._service_client.get_container_client(bucket)
         return container_client.get_blob_client(key)
 
-    def _get_container_client(self, bucket: str):
+    def _get_container_client(self, bucket: str) -> Any:
         """Get a container client for the given container name.
 
         Args:
@@ -140,7 +141,7 @@ class AzureStorageAdapter:
         blob_client = self._get_blob_client(bucket, key)
         try:
             downloader = blob_client.download_blob()
-            return downloader.readall()
+            return downloader.readall()  # type: ignore[no-any-return]
         except Exception as exc:
             raise TransientError(
                 f"Azure download failed: {bucket}/{key}",

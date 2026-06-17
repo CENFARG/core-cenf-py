@@ -154,7 +154,7 @@ class _SQLAlchemyRepository:
     @staticmethod
     def _pk(entity: Any) -> Any:
         """Extract primary key value from an entity."""
-        pk_cols = entity.__table__.primary_key.columns.keys()  # type: ignore[union-attr]
+        pk_cols = entity.__table__.primary_key.columns.keys()
         if len(pk_cols) == 1:
             return getattr(entity, pk_cols[0])
         return tuple(getattr(entity, c) for c in pk_cols)

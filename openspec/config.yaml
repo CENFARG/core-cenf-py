@@ -1,0 +1,83 @@
+# OpenSpec Configuration — core-cenf
+# CENF Core Infrastructure — Horizontal Transversal Managers
+# Architecture: Clean Architecture / Hexagonal (ports & adapters)
+# Methodology: SDD + TDD
+# Language: Python 3.12+ (TypeScript will be added in a later phase)
+# Package Manager: UV (preferred)
+
+context:
+  project: core-cenf
+  description: >
+    CENF Core Infrastructure implements 12 horizontal transversal managers
+    (ConfigManager, LoggerManager, SecretManager, ErrorHandlingManager,
+    ObservabilityManager, DatabaseManager, CacheManager, FileStorageManager,
+    TaskQueueManager, AuthManager, ExternalAPIManager, FeatureFlagManager).
+    This is the heart of all CENF agent-driven development — every CENF project
+    depends on this layer for configuration, logging, secrets, observability,
+    error handling, caching, storage, task queues, auth, external API calls,
+    and feature flags.
+  architecture: Clean Architecture / Hexagonal
+  principles:
+    - Dependencies point inward (domain knows nothing about infrastructure)
+    - Ports (Protocols) define contracts, adapters implement them
+    - Zero-Trust & Security-by-Design
+    - Event-Loop Safety & Structured Concurrency (asyncio.TaskGroup)
+    - Context propagation via contextvars (implicit)
+    - Boundary Validation with Pydantic V2
+    - Agent-first observability (RED Metrics, OpenTelemetry)
+    - Tool Discovery via JSON Schema for LLM agents
+  conventions:
+    - Each manager in its own module: src/core_infrastructure/<manager>/
+    - ports.py for Protocols/TypedDicts
+    - adapters/ for concrete implementations
+    - Google/Numpy docstrings with Security, Observability, @ai-directive sections
+    - Max 250 lines per file
+    - No hardcoded paths, credentials, or config values
+    - Config externalized in YAML/JSON loaded by ConfigManager
+    - Three log levels: development, test, production
+    - i18n from the start via ConfigManager
+    - Decorators exclusively for cross-cutting concerns (logging, caching, retry, auth, profiling)
+    - Strict use of @functools.wraps + typing.ParamSpec + typing.TypeVar
+    - Max 3 decorators per function, max 50 lines per decorator
+    - Dependency injection centralized
+    - File headers in every source file (what, why, version, author)
+  spec_source: >
+    C:\Dropbox\DOC.RECA\03-CENF\05-Recursos\25-db_Prompt\development\core_infra_CENF\core-infrastructure\openspec\MASTER_OpenSpec_Core_Infra_SOTA_2026.md
+  dev_rules: >
+    C:\Dropbox\DOC.RECA\03-CENF\05-Recursos\25-db_Prompt\development\rules_devs_CENF\rules_devs_CENF.md
+  programming_rules: >
+    C:\Dropbox\DOC.RECA\03-CENF\03-Proyectos CENF\0017-2026-Estandar_Programacion\rules_cenf_programacion_cruda.txt
+
+testing:
+  strict_tdd: true
+  runner: pytest 9.0.3
+  async_support: pytest-asyncio (not yet installed — pending uv add)
+  coverage: pytest-cov 7.1.0
+  layers:
+    unit: { directory: tests/unit, status: ready }
+    integration: { directory: tests/integration, status: ready }
+    e2e: { directory: tests/e2e, status: ready }
+    stress: { directory: tests/stress, status: ready }
+  linter: ruff 0.15.12
+  type_checker: mypy 1.20.1
+  formatter: ruff 0.15.12 (ruff format)
+  test_command: python -m pytest
+
+quality:
+  linter: ruff 0.15.12
+  type_checker: mypy 1.20.1
+  formatter: ruff 0.15.12 (ruff format)
+
+persistence:
+  mode: hybrid
+  backends: [openspec, engram]
+
+phase_rules:
+  explore: Openspec exploration — clarify requirements before committing to a change
+  proposal: Create SDD change proposal with intent, scope, and approach
+  spec: Write SDD delta specs with requirements and scenarios
+  design: Produce technical design and architecture approach
+  tasks: Break change into implementation tasks (vertical slices / tracer bullets)
+  apply: Implement tasks following TDD — red-green-refactor per slice
+  verify: Execute tests and prove implementation matches specs, design, and tasks
+  archive: Archive completed changes by syncing delta specs

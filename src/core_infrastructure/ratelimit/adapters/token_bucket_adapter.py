@@ -1,17 +1,21 @@
-"""TokenBucketAdapter — token bucket rate limiting with asyncio.Lock thread safety.
+"""TokenBucketAdapter — token bucket rate limiting with Redis support.
 
 Implements the Token Bucket algorithm: tokens are added at a constant
 refill_rate per second, capped at capacity. is_allowed() consumes tokens
 atomically. Each bucket is protected by its own asyncio.Lock for concurrent
 safety in async contexts.
 
+When a CacheManager (Redis) is provided, bucket state is persisted to the
+shared cache with key prefix ``cenf:ratelimit:``, enabling cross-process
+rate limiting. On Redis failure, gracefully falls back to in-memory dicts.
+
 Security: is_allowed() returns False when tokens are exhausted — never raises.
 Observability: All rate limit decisions emit RED metrics via ObservabilityManager.
-@ai-directive: Redis integration is optional via CacheManager parameter. When
-    not provided, buckets are in-memory only.
+@ai-directive: Redis key format is ``cenf:ratelimit:{bucket_key}``. Bucket state
+    JSON includes tokens, last_refill, capacity, and refill_rate.
 
 Author: CENF AI Team
-Version: 0.1.0
+Version: 0.2.0
 """
 
 from __future__ import annotations
@@ -26,13 +30,16 @@ from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.ratelimit.models import BucketState, RateLimitConfig
 
+_REDIS_KEY_PREFIX = "cenf:ratelimit:"
+
 
 class TokenBucketAdapter:
-    """Token Bucket rate limiter with per-bucket asyncio.Lock.
+    """Token Bucket rate limiter with Redis-backed distributed state.
 
-    Implements the classic Token Bucket algorithm: tokens are continuously
-    refilled at ``refill_rate`` tokens per second, up to ``capacity``.
-    ``is_allowed()`` atomically checks and consumes tokens.
+    Implements the classic Token Bucket algorithm with optional Redis
+    persistence. When ``cache`` (CacheManager) is provided, bucket state
+    is read from and written to Redis at ``cenf:ratelimit:{bucket_key}``.
+    If Redis operations fail, gracefully falls back to in-memory only.
 
     Args:
         config: ConfigManager for RateLimitConfig reading.
@@ -69,11 +76,65 @@ class TokenBucketAdapter:
         self._locks: dict[str, asyncio.Lock] = {}
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Redis helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _redis_key(bucket_key: str) -> str:
+        """Build the Redis cache key for a rate limit bucket.
+
+        Args:
+            bucket_key: The bucket identifier.
+
+        Returns:
+            str: Prefixed cache key (``cenf:ratelimit:{bucket_key}``).
+        """
+        return f"{_REDIS_KEY_PREFIX}{bucket_key}"
+
+    def _redis_get(self, bucket_key: str) -> dict[str, Any] | None:
+        """Retrieve bucket state from Redis cache.
+
+        Args:
+            bucket_key: The bucket identifier.
+
+        Returns:
+            dict | None: Deserialized bucket state dict, or ``None`` if missing/failed.
+        """
+        if self._cache is None:
+            return None
+        try:
+            data = self._cache.get(self._redis_key(bucket_key))
+            if data is None:
+                return None
+            if not isinstance(data, dict):
+                return None
+            return data
+        except Exception:
+            return None
+
+    def _redis_set(self, bucket_key: str, bucket: BucketState) -> None:
+        """Persist bucket state to Redis cache.
+
+        Args:
+            bucket_key: The bucket identifier.
+            bucket: The bucket state to persist.
+        """
+        if self._cache is None:
+            return
+        try:
+            payload = bucket.model_dump()
+            self._cache.set(self._redis_key(bucket_key), payload)
+        except Exception:
+            self._logger.warn("Failed to persist bucket state to cache", bucket_key=bucket_key)
+
+    # ------------------------------------------------------------------
+    # Internal helpers — Token Bucket
     # ------------------------------------------------------------------
 
     def _get_or_create_bucket(self, bucket_key: str) -> BucketState:
         """Retrieve an existing bucket or create one with defaults.
+
+        Tries Redis cache first; falls back to in-memory dict on failure.
 
         Args:
             bucket_key: The bucket identifier.
@@ -81,6 +142,13 @@ class TokenBucketAdapter:
         Returns:
             BucketState: The existing or newly created bucket state.
         """
+        raw = self._redis_get(bucket_key)
+        if raw is not None:
+            try:
+                return BucketState(**raw)
+            except Exception:
+                pass
+
         if bucket_key not in self._buckets:
             self._buckets[bucket_key] = BucketState(
                 tokens=float(self._rl_config.default_capacity),
@@ -140,8 +208,10 @@ class TokenBucketAdapter:
 
             if bucket.tokens >= cost:
                 bucket.tokens -= cost
+                self._redis_set(bucket_key, bucket)
                 return True
 
+            self._redis_set(bucket_key, bucket)
             return False
 
     async def get_remaining(self, bucket_key: str) -> int:
@@ -159,6 +229,7 @@ class TokenBucketAdapter:
         async with lock:
             bucket = self._get_or_create_bucket(bucket_key)
             self._refill(bucket)
+            self._redis_set(bucket_key, bucket)
             return int(bucket.tokens)
 
     async def get_reset_time(self, bucket_key: str) -> float:
@@ -185,7 +256,13 @@ class TokenBucketAdapter:
             seconds_to_full = deficit / bucket.refill_rate
             return _time.time() + seconds_to_full
 
-    def configure_bucket(self, bucket_key: str, capacity: int, refill_rate: float, window_type: str = "token_bucket") -> None:
+    def configure_bucket(
+        self,
+        bucket_key: str,
+        capacity: int,
+        refill_rate: float,
+        window_type: str = "token_bucket",
+    ) -> None:
         """Configure a rate limit bucket.
 
         Overwrites any existing configuration for the same bucket_key.
@@ -202,6 +279,7 @@ class TokenBucketAdapter:
             capacity=capacity,
             refill_rate=refill_rate,
         )
+        self._redis_set(bucket_key, self._buckets[bucket_key])
 
     @staticmethod
     def get_json_schema() -> dict[str, Any]:

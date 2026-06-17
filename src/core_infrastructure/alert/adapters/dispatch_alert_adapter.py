@@ -3,15 +3,17 @@
 Implements AlertManager with Slack, Discord, and Email channel support.
 Uses ExternalAPIManager (M11) for HTTP calls and dict-based condition
 matching for rule evaluation. Includes throttle windows per rule.
+Email dispatch uses ``smtplib`` with SMTP config from ConfigManager and
+SecretManager.
 
 Security: Never raises on alert failure — fire-and-forget with error logging.
     Channel credentials are read via SecretManager, never hardcoded.
 Observability: All dispatch events emit RED metrics. Throttled alerts logged at WARNING.
-@ai-directive: Use ExternalAPIManager for HTTP. Email channel is a placeholder.
+@ai-directive: Use ExternalAPIManager for HTTP. Email uses stdlib smtplib.
     asyncio.Lock protects the rules registry and throttle state.
 
 Author: CENF AI Team
-Version: 0.1.0
+Version: 0.2.0
 """
 
 from __future__ import annotations
@@ -173,6 +175,79 @@ class DispatchAlertAdapter:
         last = self._last_fired.get(rule_id)
         return not (last is not None and (now - last) < rule.throttle_seconds)
 
+    async def _dispatch_email(self, title: str, message: str) -> None:
+        """Dispatch an alert via SMTP email.
+
+        Reads SMTP configuration from the alert channel config:
+        ``smtp_host``, ``smtp_port``, ``smtp_user``, ``from_email``,
+        ``to_emails``. SMTP password is retrieved via SecretManager using
+        the key from ``smtp_password_key`` (default ``"alert.smtp_password"``).
+
+        Format: plain text MIMEText with ``title`` as subject and
+        ``message`` as body. Errors are logged — never raised.
+
+        Args:
+            title: Email subject line.
+            message: Email body (plain text).
+        """
+        try:
+            email_config = self._alert_config.channels.get("email", {})
+            if not email_config:
+                return
+
+            smtp_host = email_config.get("smtp_host", "")
+            smtp_port = int(email_config.get("smtp_port", "587"))
+            smtp_user = email_config.get("smtp_user", "")
+            from_email = email_config.get("from_email", "")
+            to_emails_str = email_config.get("to_emails", "")
+            password_key = email_config.get("smtp_password_key", "alert.smtp_password")
+
+            if not all([smtp_host, from_email, to_emails_str]):
+                self._logger.warn("Email channel misconfigured — missing required fields", title=title)
+                return
+
+            to_emails = [e.strip() for e in to_emails_str.split(",") if e.strip()]
+            if not to_emails:
+                self._logger.warn("Email channel: no recipients configured", title=title)
+                return
+
+            try:
+                smtp_password = await self._secret_manager.get_secret(password_key)
+            except Exception:
+                self._logger.warn(
+                    "Email channel: failed to retrieve SMTP password from SecretManager",
+                    password_key=password_key,
+                    title=title,
+                )
+                return
+
+            if not smtp_password:
+                self._logger.warn("Email channel: empty SMTP password", title=title)
+                return
+
+            import smtplib
+            from email.mime.text import MIMEText
+
+            msg = MIMEText(message, "plain", "utf-8")
+            msg["Subject"] = title
+            msg["From"] = from_email
+            msg["To"] = ", ".join(to_emails)
+
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=10) as smtp:
+                smtp.starttls()
+                if smtp_user:
+                    smtp.login(smtp_user, smtp_password)
+                smtp.send_message(msg)
+
+            self._logger.info("Alert sent via email", title=title, to=to_emails_str)
+
+        except Exception as exc:
+            self._logger.error(
+                "Failed to send email alert",
+                exc=exc,
+                title=title,
+            )
+
     # ------------------------------------------------------------------
     # Public API — AlertManager Protocol
     # ------------------------------------------------------------------
@@ -204,6 +279,10 @@ class DispatchAlertAdapter:
 
         for channel_name, channel_config in channels.items():
             try:
+                if channel_name == "email":
+                    await self._dispatch_email(title, message)
+                    continue
+
                 webhook_url = channel_config.get("webhook_url", "")
 
                 if not webhook_url:
@@ -219,9 +298,6 @@ class DispatchAlertAdapter:
                     payload = self._format_discord(title, message, level)
                     await self._external_api.post(webhook_url, body=payload)
                     self._logger.info("Alert sent to Discord", title=title, level=level.value)
-
-                elif channel_name == "email":
-                    self._logger.warn("Email channel not yet implemented", title=title)
 
                 else:
                     self._logger.warn("Unknown alert channel", channel=channel_name)

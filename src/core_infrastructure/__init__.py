@@ -17,6 +17,8 @@ Managers incluidos:
 - TaskQueueManager: Orquestación asíncrona y DLQ
 - ExternalAPIManager: Cliente HTTP resiliente con Circuit Breaker
 - FeatureFlagManager: Activación dinámica en runtime
+- DependencyManager: Resolución lazy y validada de dependencias via importlib
+- RateLimiterManager: Rate limiting con Token Bucket y Sliding Window
 """
 
 from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
@@ -62,6 +64,14 @@ from core_infrastructure.database.adapters.memory_database_adapter import Memory
 from core_infrastructure.database.adapters.sqlalchemy_adapter import SQLAlchemyAdapter
 from core_infrastructure.database.models import DatabaseConfig, PaginatedResult, RepositoryQuery
 from core_infrastructure.database.ports import DatabaseManager, GenericRepository, TransactionScope
+from core_infrastructure.dependency.adapters.importlib_dependency_adapter import (
+    ImportlibDependencyAdapter,
+)
+from core_infrastructure.dependency.adapters.in_memory_dependency_adapter import (
+    InMemoryDependencyAdapter,
+)
+from core_infrastructure.dependency.models import DependencyConfig, RegistryEntry
+from core_infrastructure.dependency.ports import DependencyManager
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
 from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
@@ -99,6 +109,12 @@ from core_infrastructure.observability.adapters.noop_observability_adapter impor
 from core_infrastructure.observability.adapters.otel_adapter import OTelAdapter
 from core_infrastructure.observability.models import ObservabilitySettings
 from core_infrastructure.observability.ports import ObservabilityManager
+from core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter import (
+    InMemoryRateLimitAdapter,
+)
+from core_infrastructure.ratelimit.adapters.token_bucket_adapter import TokenBucketAdapter
+from core_infrastructure.ratelimit.models import BucketState, RateLimitConfig, RateLimitHeaders
+from core_infrastructure.ratelimit.ports import RateLimiterManager
 from core_infrastructure.secrets.adapters.encrypted_secret_adapter import (
     EncryptedSecretAdapter,
 )
@@ -121,6 +137,7 @@ __all__ = [
     "AuthError",
     "AuthManager",
     "BootstrapOrchestrator",
+    "BucketState",
     "CacheConfig",
     "CacheEntry",
     "CacheManager",
@@ -133,6 +150,8 @@ __all__ = [
     "CoreSettings",
     "DatabaseConfig",
     "DatabaseManager",
+    "DependencyConfig",
+    "DependencyManager",
     "EncryptedSecretAdapter",
     "ErrorClassification",
     "ErrorContext",
@@ -148,9 +167,12 @@ __all__ = [
     "FlagContext",
     "GenericRepository",
     "HealthStatus",
+    "ImportlibDependencyAdapter",
     "InMemoryConfigAdapter",
+    "InMemoryDependencyAdapter",
     "InMemoryLoggerAdapter",
     "InMemoryObservabilityAdapter",
+    "InMemoryRateLimitAdapter",
     "InMemorySecretAdapter",
     "Job",
     "JobRef",
@@ -174,8 +196,12 @@ __all__ = [
     "PermanentError",
     "PydanticConfigAdapter",
     "QueueConfig",
+    "RateLimitConfig",
     "RateLimitError",
+    "RateLimitHeaders",
+    "RateLimiterManager",
     "RedisCacheAdapter",
+    "RegistryEntry",
     "RepositoryQuery",
     "RequestConfig",
     "ResilientHTTPAdapter",
@@ -190,6 +216,7 @@ __all__ = [
     "StorageConfig",
     "StructlogAdapter",
     "TaskQueueManager",
+    "TokenBucketAdapter",
     "TokenClaims",
     "TransactionScope",
     "TransientError",

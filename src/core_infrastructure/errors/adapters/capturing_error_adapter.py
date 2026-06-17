@@ -28,7 +28,7 @@ from core_infrastructure.common.errors import (
     ValidationError,
 )
 from core_infrastructure.config.ports import ConfigManager
-from core_infrastructure.errors.models import ErrorClassification
+from core_infrastructure.errors.models import ErrorClassification, ErrorReport
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.observability.ports import ObservabilityManager
 
@@ -133,12 +133,29 @@ class CapturingErrorAdapter:
         self,
         error: Exception,
         context: dict[str, Any] | None = None,
-    ) -> Any:
-        """Capture and report the error.
+    ) -> ErrorReport:
+        """Capture, report, and return structured ErrorReport.
+
+        Unlike ClassificationAdapter, the error is CAPTURED (appended to
+        internal buffer) rather than re-raised. The returned ErrorReport
+        satisfies the ErrorHandlingManager Protocol contract.
+
+        Args:
+            error: The exception to handle.
+            context: Optional contextual metadata.
+
+        Returns:
+            ErrorReport: Structured report with classification and context.
         """
         self._captured.append(error)
         self.report(error, context)
-        return None
+        classification = self.classify(error)
+        return ErrorReport(
+            error_type=classification.name,
+            error_class=type(error).__qualname__,
+            message=str(error),
+            context=context or {},
+        )
 
     def handle_errors(self, **decorator_opts: Any) -> Any:
         """Return a @handle_errors decorator that CAPTURES instead of re-raising.

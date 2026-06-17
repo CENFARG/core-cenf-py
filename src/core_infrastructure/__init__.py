@@ -72,6 +72,8 @@ from core_infrastructure.database.ports import DatabaseManager, GenericRepositor
 from core_infrastructure.dependency.models import DependencyConfig, RegistryEntry
 from core_infrastructure.dependency.ports import DependencyManager
 from core_infrastructure.dynamic_prompting.models import PromptConfig
+from core_infrastructure.i18n.models import I18nConfig
+from core_infrastructure.i18n.ports import I18nManager
 from core_infrastructure.dynamic_prompting.ports import DynamicPromptingManager, PromptBlock
 from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
 from core_infrastructure.errors.ports import ErrorHandlingManager
@@ -106,6 +108,8 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
 from core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter import MemoryFeatureFlagAdapter
+from core_infrastructure.i18n.adapters.in_memory_i18n_adapter import InMemoryI18nAdapter
+from core_infrastructure.i18n.adapters.yaml_i18n_adapter import YamlI18nAdapter
 from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
 from core_infrastructure.logger.adapters.structlog_adapter import StructlogAdapter
 from core_infrastructure.observability.adapters.in_memory_observability_adapter import (

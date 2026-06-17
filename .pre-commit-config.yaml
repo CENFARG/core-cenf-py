@@ -1,0 +1,50 @@
+# Pre-commit hooks for core-cenf
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy-strict
+        name: mypy strict
+        entry: bash -c 'cd src && mypy core_infrastructure/ --strict'
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: no-regex-spaces
+        name: block regex space collapse
+        entry: bash -c '! grep -rPn "r[\x27\x22]\s*\\s*\x2b" src/ tests/'
+        language: system
+        pass_filenames: false
+        description: "CENF Rule: NEVER use regex r' +' — destroys indentation"
+
+      - id: no-asyncio-gather
+        name: block bare asyncio.gather
+        entry: bash -c '! grep -rPn "(?<!TaskGroup\(\)\.)\basyncio\.gather\b" src/core_infrastructure/'
+        language: system
+        types: [python]
+        pass_filenames: false
+        description: "CENF Rule: Use asyncio.TaskGroup instead"
+
+      - id: no-hardcoded-paths
+        name: block hardcoded windows paths
+        entry: bash -c '! grep -rPn "C:\\\\" src/core_infrastructure/'
+        language: system
+        types: [python]
+        pass_filenames: false
+        description: "CENF Rule: NEVER hardcode paths"
+
+      - id: file-size-limit
+        name: block files over 250 lines
+        entry: .pre-commit-hooks/check-file-size.sh
+        language: script
+        pass_filenames: false
+        description: "CENF Rule: Max 250 lines per file"

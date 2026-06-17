@@ -150,10 +150,52 @@ error_mgr = CapturingErrorAdapter(config_manager=config, logger_manager=logger, 
 
 ---
 
-## File Size Limits (CENF Rule)
+## Commit Gate (BEFORE every commit — MANDATORY)
 
-- **Max 250 lines per file**. Split adapters into helpers if needed.
-- File headers required: what, why, version, author (max 10 lines).
+```bash
+ruff check src/ tests/         # ZERO errors
+mypy src/core_infrastructure/ --strict  # ZERO errors
+python -m pytest tests/ -q     # ALL green
+```
+
+Any commit that fails ANY of these MUST be reverted and fixed. The CI/CD pipeline enforces these same gates on push.
+
+---
+
+## Pre-Commit Hooks (auto-enforced)
+
+```bash
+pre-commit install
+```
+
+Hooks check: ruff format, mypy strict, no `r' +'` regex, no bare `asyncio.gather`, no hardcoded `C:\` paths, files ≤250 lines.
+
+---
+
+## CI/CD Pipeline
+
+Every push to `main` and every PR runs:
+1. **Lint + Type Check + Test** (ruff, mypy strict, pytest full suite)
+2. **Security Scan** (Trivy — blocks CRITICAL/HIGH CVEs)
+3. **SBOM Generation** (CycloneDX — software bill of materials)
+4. **Stress Tests** (reserved, not yet implemented)
+
+Pipeline: `.github/workflows/ci.yml`
+
+---
+
+## Project Infrastructure
+
+| File | Purpose |
+|------|---------|
+| `.pre-commit-config.yaml` | Pre-commit hooks (ruff, mypy, CENF rules) |
+| `.github/workflows/ci.yml` | CI/CD pipeline |
+| `sbom.xml` | Generated SBOM (CycloneDX) |
+| `migrations/` | Alembic database migrations |
+| `.codegraph/` | CodeGraph knowledge graph (local, regenerated with `codegraph index`) |
+| `examples/full_demo.py` | Golden path: all 16 managers working together |
+
+---
 
 ## Reference Files
 
@@ -161,3 +203,5 @@ error_mgr = CapturingErrorAdapter(config_manager=config, logger_manager=logger, 
 - All specs: `openspec/specs/`
 - Bootstrap example: `src/core_infrastructure/bootstrap.py`
 - Test fixtures: `tests/conftest.py`
+- CI/CD pipeline: `.github/workflows/ci.yml`
+- Docusaurus expert prompt: Engram `tools/docusaurus-expert-cenf`

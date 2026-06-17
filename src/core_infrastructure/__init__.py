@@ -19,8 +19,13 @@ Managers incluidos:
 - FeatureFlagManager: Activación dinámica en runtime
 - DependencyManager: Resolución lazy y validada de dependencias via importlib
 - RateLimiterManager: Rate limiting con Token Bucket y Sliding Window
+- DynamicPromptingManager: Ensamblado condicional de system prompts
+- AlertManager: Despacho multi-canal de alertas (Slack/Discord/Email)
 """
 
+from core_infrastructure.alert.adapters.dispatch_alert_adapter import DispatchAlertAdapter
+from core_infrastructure.alert.models import AlertChannel, AlertConfig
+from core_infrastructure.alert.ports import AlertLevel, AlertManager, AlertRule
 from core_infrastructure.auth.adapters.jwt_auth_adapter import JwtAuthAdapter
 from core_infrastructure.auth.adapters.static_auth_adapter import StaticAuthAdapter
 from core_infrastructure.auth.models import AuthConfig, TokenClaims
@@ -72,6 +77,11 @@ from core_infrastructure.dependency.adapters.in_memory_dependency_adapter import
 )
 from core_infrastructure.dependency.models import DependencyConfig, RegistryEntry
 from core_infrastructure.dependency.ports import DependencyManager
+from core_infrastructure.dynamic_prompting.adapters.conditional_prompt_adapter import (
+    ConditionalPromptAdapter,
+)
+from core_infrastructure.dynamic_prompting.models import PromptConfig
+from core_infrastructure.dynamic_prompting.ports import DynamicPromptingManager, PromptBlock
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.errors.adapters.classification_adapter import ClassificationAdapter
 from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
@@ -131,6 +141,11 @@ from core_infrastructure.taskqueue.ports import TaskQueueManager
 
 __version__ = "0.1.0-dev"
 __all__ = [
+    "AlertChannel",
+    "AlertConfig",
+    "AlertLevel",
+    "AlertManager",
+    "AlertRule",
     "ApiResponse",
     "AsyncLifecycle",
     "AuthConfig",
@@ -145,6 +160,7 @@ __all__ = [
     "CenfError",
     "CircuitState",
     "ClassificationAdapter",
+    "ConditionalPromptAdapter",
     "ConfigManager",
     "ContextValidation",
     "CoreSettings",
@@ -152,6 +168,8 @@ __all__ = [
     "DatabaseManager",
     "DependencyConfig",
     "DependencyManager",
+    "DispatchAlertAdapter",
+    "DynamicPromptingManager",
     "EncryptedSecretAdapter",
     "ErrorClassification",
     "ErrorContext",
@@ -194,6 +212,8 @@ __all__ = [
     "ObservabilitySettings",
     "PaginatedResult",
     "PermanentError",
+    "PromptBlock",
+    "PromptConfig",
     "PydanticConfigAdapter",
     "QueueConfig",
     "RateLimitConfig",

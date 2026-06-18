@@ -47,9 +47,6 @@
     "node": ">=20.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "@swc/core",
-      "core-js"
-    ]
+    "onlyBuiltDependencies": ["@swc/core", "core-js"]
   }
 }

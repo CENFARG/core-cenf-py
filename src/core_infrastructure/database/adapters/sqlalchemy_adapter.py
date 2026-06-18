@@ -149,7 +149,7 @@ class _SQLAlchemyRepository:
                     stmt = stmt.where(col == value)
 
         result = await self._session.execute(stmt)
-        return result.scalar_one()  # type: ignore[no-any-return]
+        return result.scalar_one()
 
     @staticmethod
     def _pk(entity: Any) -> Any:

@@ -49,6 +49,7 @@ dev = [
     "types-redis>=4.6",
     "types-aiofiles>=24.0",
     "faker>=30.0",
+    "aiosqlite>=0.20",
 ]
 sqlalchemy = ["sqlalchemy[asyncio]>=2.0"]
 saq = ["saq>=0.15"]

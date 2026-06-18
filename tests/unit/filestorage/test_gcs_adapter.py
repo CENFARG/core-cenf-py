@@ -221,10 +221,10 @@ class TestGcsStorageAdapterExists:
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
         """exists() returns True when list_objects includes the key."""
-        mock_storage.list_objects.return_value = [
+        mock_storage.list_objects.return_value = {"items": [
             {"name": "data/file.txt", "size": 1024},
             {"name": "data/other.txt", "size": 512},
-        ]
+        ]}
 
         result = await storage.exists("my-bucket", "data/file.txt")
         assert result is True
@@ -280,10 +280,10 @@ class TestGcsStorageAdapterListObjects:
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
         """list_objects() converts GCS objects to FileRef list."""
-        mock_storage.list_objects.return_value = [
+        mock_storage.list_objects.return_value = {"items": [
             {"name": "photos/cat.jpg", "size": 2048},
             {"name": "photos/dog.jpg", "size": 4096},
-        ]
+        ]}
 
         result = await storage.list_objects("my-bucket", prefix="photos/")
 

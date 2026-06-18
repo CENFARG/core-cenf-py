@@ -57,8 +57,10 @@ postgres = [
     "psycopg[binary]>=3.2",
 ]
 s3 = ["aioboto3>=14.0"]
+gcs = ["gcloud-aio-storage>=9.0"]
+azure = ["azure-storage-blob>=12.0"]
 all = [
-    "core-cenf[sqlalchemy,postgres,s3]",
+    "core-cenf[sqlalchemy,postgres,s3,gcs,azure,saq]",
 ]
 
 [build-system]

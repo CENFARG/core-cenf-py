@@ -174,7 +174,7 @@ class GcsStorageAdapter:
             PermanentError: If URL generation fails.
         """
         try:
-            return await self._client.get_download_url(  # type: ignore[no-any-return]
+            return await self._client.get_download_url(  # type: ignore[attr-defined, no-any-return]
                 bucket, key, expiration=expiry
             )
         except Exception as exc:

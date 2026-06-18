@@ -106,6 +106,7 @@ strict = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 warn_unreachable = true
 warn_unused_ignores = false  # optional deps without stubs cause CI/local mismatch
+disable_error_code = ["unused-ignore"]  # permanently disabled: optional dep stub conflicts
 show_error_codes = true
 
 [[tool.mypy.overrides]]

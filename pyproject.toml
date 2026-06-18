@@ -48,6 +48,7 @@ dev = [
     "faker>=30.0",
 ]
 sqlalchemy = ["sqlalchemy[asyncio]>=2.0"]
+saq = ["saq>=0.15"]
 postgres = [
     "asyncpg>=0.30",
     "psycopg[binary]>=3.2",

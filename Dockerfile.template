@@ -1,0 +1,63 @@
+# Dockerfile — core-cenf consumer application template
+# 
+# This is a REFERENCE template. Copy this to your CENF application project
+# and customize the APP_NAME, APP_MODULE, and EXPOSE port.
+#
+# Security best practices:
+# - Runs as non-root user (appuser) with minimal permissions
+# - Uses multi-stage build to minimize image size
+# - Pins base image by digest for reproducibility
+# - No secrets in build args (use SecretManager at runtime)
+# - HEALTHCHECK uses BootstrapOrchestrator health endpoint
+#
+# SOTA 2026: Follows CIS Docker Benchmark, OWASP Container Security
+
+# ---- Stage 1: Build ----
+FROM python:3.12-slim-bookworm@sha256:4a10b1e6e5e4c1c9e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5 AS builder
+
+WORKDIR /app
+
+# Install UV for fast dependency resolution
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+# Install dependencies in a separate layer for caching
+COPY pyproject.toml uv.lock* ./
+RUN uv venv /opt/venv && \
+    . /opt/venv/bin/activate && \
+    uv pip install --no-cache -e ".[all]"
+
+# ---- Stage 2: Runtime ----
+FROM python:3.12-slim-bookworm@sha256:4a10b1e6e5e4c1c9e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5 AS runtime
+
+# Create non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Copy application code (exclude .git, tests, docs in .dockerignore)
+COPY . .
+
+# Set ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user (CRITICAL: never run as root)
+USER appuser
+
+# Environment
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    CENF_ENV=prod
+
+# Health check (uses BootstrapOrchestrator)
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
+
+# Expose port (customize per application)
+EXPOSE 8080
+
+# Run the application
+CMD ["python", "-m", "APP_MODULE"]

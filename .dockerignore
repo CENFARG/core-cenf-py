@@ -1,0 +1,40 @@
+# .dockerignore — exclude from Docker build context
+.git
+.gitignore
+.venv
+.engram
+.codegraph
+.atl
+.pytest_cache
+.coverage
+htmlcov
+.tox
+
+# Development files
+tests/
+examples/
+openspec/
+docs/
+.pre-commit-config.yaml
+.pre-commit-hooks/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+
+# Secrets (CRITICAL: never in Docker image)
+.env
+.env.*
+*.pem
+*.key
+secrets.*
+credentials.*
+
+# OS
+.DS_Store
+Thumbs.db

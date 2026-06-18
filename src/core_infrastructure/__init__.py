@@ -195,9 +195,9 @@ except ImportError:
     S3StorageAdapter = None  # type: ignore[assignment,misc]
 
 try:
-    from core_infrastructure.filestorage.adapters.gcs_storage_adapter import GCSStorageAdapter
+    from core_infrastructure.filestorage.adapters.gcs_storage_adapter import GcsStorageAdapter
 except ImportError:
-    GCSStorageAdapter = None  # type: ignore[assignment,misc]
+    GcsStorageAdapter = None  # type: ignore[assignment,misc]
 
 try:
     from core_infrastructure.filestorage.adapters.azure_storage_adapter import AzureStorageAdapter

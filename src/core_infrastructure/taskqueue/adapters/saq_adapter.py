@@ -184,7 +184,7 @@ class SaQAdapter:
             str: The queue name.
         """
         queue_attr = saq_job.queue
-        if hasattr(queue_attr, "name"):
+        if queue_attr is not None and hasattr(queue_attr, "name"):
             return str(queue_attr.name)
         return str(queue_attr)
 

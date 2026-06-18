@@ -14,8 +14,8 @@ from __future__ import annotations
 import contextlib
 from typing import Any
 
-from aiobotocore.session import AioSession  # type: ignore[import-untyped]
-from botocore.exceptions import ClientError  # type: ignore[import-untyped]
+from aiobotocore.session import AioSession
+from botocore.exceptions import ClientError
 
 from core_infrastructure.common.errors import TransientError
 from core_infrastructure.config.ports import ConfigManager

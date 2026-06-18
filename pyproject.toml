@@ -108,6 +108,30 @@ warn_unreachable = true
 warn_unused_ignores = true
 show_error_codes = true
 
+[[tool.mypy.overrides]]
+module = [
+    "gcloud.aio.storage",
+    "gcloud.aio.storage.*",
+    "azure.storage.blob",
+    "azure.storage.blob.*",
+    "azure.core.exceptions",
+    "sqlalchemy",
+    "sqlalchemy.*",
+    "aiobotocore.session",
+    "aiobotocore.*",
+    "botocore.exceptions",
+    "botocore.*",
+    "jose",
+    "jose.*",
+    "jose.exceptions",
+    "redis",
+    "redis.*",
+    "saq",
+    "saq.*",
+    "aiofiles",
+]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 minversion = "9.0"
 testpaths = ["tests"]

@@ -152,9 +152,8 @@ class CapturingErrorAdapter:
         classification = self.classify(error)
         return ErrorReport(
             error_type=classification.name,
-            error_class=type(error).__qualname__,
             message=str(error),
-            context=context or {},
+            source=type(error).__qualname__,
         )
 
     def handle_errors(self, **decorator_opts: Any) -> Any:

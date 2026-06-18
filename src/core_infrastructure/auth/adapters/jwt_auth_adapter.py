@@ -22,8 +22,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from jose import jwt as jose_jwt  # type: ignore[import-untyped]
-from jose.exceptions import JWTError as JoseJWTError  # type: ignore[import-untyped]
+from jose import jwt as jose_jwt
+from jose.exceptions import JWTError as JoseJWTError
 
 from core_infrastructure.auth.models import AuthConfig, TokenClaims
 from core_infrastructure.common.context import set_principal_id, set_tenant_id

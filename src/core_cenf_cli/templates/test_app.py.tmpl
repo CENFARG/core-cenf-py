@@ -1,0 +1,53 @@
+"""Basic smoke test for {{ project_name }} application.
+
+Verifies that the application module imports correctly and that
+the AppSettings model validates without errors.
+
+Author: CENF AI Team
+Version: 0.1.0
+"""
+
+from __future__ import annotations
+
+import pytest
+
+
+def test_app_imports() -> None:
+    """Verify that the application module imports without errors."""
+    import {{ package_name }}  # noqa: F401
+
+
+def test_app_settings_valid_defaults() -> None:
+    """Verify AppSettings accepts default values."""
+    from {{ package_name }}.settings import AppSettings
+
+    settings = AppSettings()
+    assert settings.env == "dev"
+    assert settings.app_name == "cenf-core"
+    assert settings.api_port == 8000
+
+
+def test_app_settings_custom_values() -> None:
+    """Verify AppSettings accepts custom values."""
+    from {{ package_name }}.settings import AppSettings
+
+    settings = AppSettings(
+        env="staging",
+        app_name="{{ project_name }}",
+        api_port=9000,
+        debug=True,
+    )
+    assert settings.env == "staging"
+    assert settings.app_name == "{{ project_name }}"
+    assert settings.api_port == 9000
+    assert settings.debug is True
+
+
+def test_app_settings_invalid_env() -> None:
+    """Verify AppSettings rejects invalid env values."""
+    from pydantic import ValidationError
+
+    from {{ package_name }}.settings import AppSettings
+
+    with pytest.raises(ValidationError):
+        AppSettings(env="invalid_env")

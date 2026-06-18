@@ -1,0 +1,335 @@
+"""{{ project_name }} — Bootstrap application pre-wired with core-cenf.
+
+All 17 CENF horizontal transversal managers are wired here using
+in-memory adapters for development/testing. Replace with production
+adapters (StructlogAdapter, OTelAdapter, RedisCacheAdapter, etc.)
+when deploying.
+
+Run: python -m {{ package_name }}.app
+
+Author: CENF AI Team
+Version: 0.1.0
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+# =========================================================================
+# 1. ConfigManager — root, zero dependencies
+# =========================================================================
+from core_infrastructure.config.adapters.in_memory_config_adapter import (
+    InMemoryConfigAdapter,
+)
+
+# =========================================================================
+# 2. LoggerManager — structured logging
+# =========================================================================
+from core_infrastructure.logger.adapters.in_memory_logger_adapter import (
+    InMemoryLoggerAdapter,
+)
+
+# =========================================================================
+# 3. SecretManager — credential management
+# =========================================================================
+from core_infrastructure.secrets.adapters.in_memory_secret_adapter import (
+    InMemorySecretAdapter,
+)
+from core_infrastructure.secrets.models import SecretConfig
+
+# =========================================================================
+# 4. ObservabilityManager — telemetry and tracing
+# =========================================================================
+from core_infrastructure.observability.adapters.in_memory_observability_adapter import (
+    InMemoryObservabilityAdapter,
+)
+
+# =========================================================================
+# 5. ErrorHandlingManager — error classification
+# =========================================================================
+from core_infrastructure.errors.adapters.capturing_error_adapter import (
+    CapturingErrorAdapter,
+)
+
+# =========================================================================
+# 6. AuthManager — JWT token validation
+# =========================================================================
+from core_infrastructure.auth.adapters.static_auth_adapter import (
+    StaticAuthAdapter,
+)
+from core_infrastructure.auth.models import TokenClaims
+
+# =========================================================================
+# 7. CacheManager — key-value cache with stampede mitigation
+# =========================================================================
+from core_infrastructure.cache.adapters.memory_cache_adapter import (
+    MemoryCacheAdapter,
+)
+from core_infrastructure.cache.models import StampedeConfig
+
+# =========================================================================
+# 8. DatabaseManager — transactional data access
+# =========================================================================
+from core_infrastructure.database.adapters.memory_database_adapter import (
+    MemoryDatabaseAdapter,
+)
+
+# =========================================================================
+# 9. FileStorageManager — blob storage
+# =========================================================================
+from core_infrastructure.filestorage.adapters.memory_storage_adapter import (
+    MemoryStorageAdapter,
+)
+from core_infrastructure.filestorage.models import StorageConfig
+
+# =========================================================================
+# 10. TaskQueueManager — async job processing
+# =========================================================================
+from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
+    MemoryTaskQueueAdapter,
+)
+from core_infrastructure.taskqueue.models import QueueConfig
+
+# =========================================================================
+# 11. ExternalAPIManager — resilient HTTP client
+# =========================================================================
+from core_infrastructure.external_api.adapters.mock_http_adapter import (
+    MockHTTPAdapter,
+)
+
+# =========================================================================
+# 12. FeatureFlagManager — runtime feature toggles
+# =========================================================================
+from core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter import (
+    MemoryFeatureFlagAdapter,
+)
+from core_infrastructure.feature_flags.models import FlagConfig
+
+# =========================================================================
+# 13. DependencyManager — lazy dependency resolution
+# =========================================================================
+from core_infrastructure.dependency.adapters.in_memory_dependency_adapter import (
+    InMemoryDependencyAdapter,
+)
+
+# =========================================================================
+# 14. DynamicPromptingManager — conditional prompt assembly
+# =========================================================================
+from core_infrastructure.dynamic_prompting.adapters.conditional_prompt_adapter import (
+    ConditionalPromptAdapter,
+)
+
+# =========================================================================
+# 15. AlertManager — multi-channel alert dispatch
+# =========================================================================
+from core_infrastructure.alert.adapters.dispatch_alert_adapter import (
+    DispatchAlertAdapter,
+)
+
+# =========================================================================
+# 16. RateLimiterManager — token bucket rate limiting
+# =========================================================================
+from core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter import (
+    InMemoryRateLimitAdapter,
+)
+
+# =========================================================================
+# 17. I18nManager — internationalization
+# =========================================================================
+from core_infrastructure.i18n.adapters.in_memory_i18n_adapter import (
+    InMemoryI18nAdapter,
+)
+
+# =========================================================================
+# Bootstrap orchestrator — coordinates startup and shutdown
+# =========================================================================
+from core_infrastructure.bootstrap import BootstrapOrchestrator
+
+
+async def main() -> None:
+    """Wire all 17 managers and start the orchestrator.
+
+    Managers are wired in strict dependency order. Each receives
+    constructor-injected dependencies. BootstrapOrchestrator handles
+    the full lifecycle: startup → wait for signal → shutdown.
+    """
+    print("=" * 64)
+    print("  {{ project_name }} — CENF Application")
+    print("  All 17 managers pre-wired with in-memory adapters")
+    print("=" * 64)
+
+    # ------------------------------------------------------------------
+    # 1. CONFIG — root, zero dependencies
+    # ------------------------------------------------------------------
+    config = InMemoryConfigAdapter(
+        initial_data={
+            "app": {"name": "{{ project_name }}", "version": "0.1.0"},
+            "env": "dev",
+            "log_level": "INFO",
+        }
+    )
+    print("[01/17] ConfigManager initialized")
+
+    # ------------------------------------------------------------------
+    # 2. LOGGER — depends on: Config
+    # ------------------------------------------------------------------
+    logger = InMemoryLoggerAdapter(
+        initial_context={"service": "{{ project_name }}", "env": "dev"}
+    )
+    print("[02/17] LoggerManager initialized")
+
+    # ------------------------------------------------------------------
+    # 3. SECRETS — depends on: Config, Logger
+    # ------------------------------------------------------------------
+    secrets = InMemorySecretAdapter(
+        config=SecretConfig(cache_ttl_seconds=300)
+    )
+    # Pre-populate secrets needed by downstream managers
+    secrets.set_secret("auth_signing_key", "demo-hs256-signing-key-change-me!!")
+    secrets.set_secret("api_key", "demo-api-key-change-me")
+    print("[03/17] SecretManager initialized")
+
+    # ------------------------------------------------------------------
+    # 4. OBSERVABILITY — depends on: Config, Logger
+    # ------------------------------------------------------------------
+    observability = InMemoryObservabilityAdapter()
+    print("[04/17] ObservabilityManager initialized")
+
+    # ------------------------------------------------------------------
+    # 5. ERROR HANDLING — depends on: Config, Logger, Observability
+    # ------------------------------------------------------------------
+    error_handler = CapturingErrorAdapter(config, logger, observability)
+    print("[05/17] ErrorHandlingManager initialized")
+
+    # ------------------------------------------------------------------
+    # 6. AUTH — depends on: Config, Secret, Logger, Observability
+    # ------------------------------------------------------------------
+    import time as _time
+
+    auth = StaticAuthAdapter(
+        default_claims=TokenClaims(
+            sub="svc-{{ package_name }}",
+            iss="https://auth.cenf.tech",
+            aud="{{ project_name }}",
+            exp=int(_time.time()) + 86400,
+            iat=int(_time.time()),
+            scopes=["read", "write"],
+        )
+    )
+    print("[06/17] AuthManager initialized")
+
+    # ------------------------------------------------------------------
+    # 7. CACHE — depends on: Config, Logger, ErrorHandling
+    # ------------------------------------------------------------------
+    cache = MemoryCacheAdapter(
+        config=config,
+        logger=logger,
+        error_handler=error_handler,
+        stampede_config=StampedeConfig(beta=1.0, delta=0.5),
+    )
+    print("[07/17] CacheManager initialized")
+
+    # ------------------------------------------------------------------
+    # 8. DATABASE — depends on: Config, Logger, Observability, ErrorHandling
+    # ------------------------------------------------------------------
+    db = MemoryDatabaseAdapter(
+        config=config,
+        logger=logger,
+        observability=observability,
+        error_handler=error_handler,
+    )
+    print("[08/17] DatabaseManager initialized")
+
+    # ------------------------------------------------------------------
+    # 9. FILE STORAGE — depends on: Config (StorageConfig)
+    # ------------------------------------------------------------------
+    storage = MemoryStorageAdapter(config=StorageConfig())
+    print("[09/17] FileStorageManager initialized")
+
+    # ------------------------------------------------------------------
+    # 10. TASK QUEUE — depends on: Config (QueueConfig)
+    # ------------------------------------------------------------------
+    task_queue = MemoryTaskQueueAdapter(config=QueueConfig())
+    print("[10/17] TaskQueueManager initialized")
+
+    # ------------------------------------------------------------------
+    # 11. EXTERNAL API — depends on: (self-contained)
+    # ------------------------------------------------------------------
+    http_client = MockHTTPAdapter()
+    print("[11/17] ExternalAPIManager initialized")
+
+    # ------------------------------------------------------------------
+    # 12. FEATURE FLAGS — depends on: Config (FlagConfig)
+    # ------------------------------------------------------------------
+    feature_flags = MemoryFeatureFlagAdapter(config=FlagConfig())
+    print("[12/17] FeatureFlagManager initialized")
+
+    # ------------------------------------------------------------------
+    # 13. DEPENDENCY — depends on: (self-contained)
+    # ------------------------------------------------------------------
+    dependency_mgr = InMemoryDependencyAdapter()
+    print("[13/17] DependencyManager initialized")
+
+    # ------------------------------------------------------------------
+    # 14. DYNAMIC PROMPTING — depends on: Config, Logger, ErrorHandling
+    # ------------------------------------------------------------------
+    prompt_assembler = ConditionalPromptAdapter(
+        config=config,
+        logger=logger,
+        error_handler=error_handler,
+    )
+    print("[14/17] DynamicPromptingManager initialized")
+
+    # ------------------------------------------------------------------
+    # 15. ALERT — depends on: Config, Secret, Logger, ExternalAPI, ErrorHandling
+    # ------------------------------------------------------------------
+    alert_mgr = DispatchAlertAdapter(
+        config=config,
+        secret_manager=secrets,
+        logger=logger,
+        external_api=http_client,
+        error_handler=error_handler,
+    )
+    print("[15/17] AlertManager initialized")
+
+    # ------------------------------------------------------------------
+    # 16. RATE LIMITER — depends on: (self-contained)
+    # ------------------------------------------------------------------
+    rate_limiter = InMemoryRateLimitAdapter(mode="always_allow")
+    print("[16/17] RateLimiterManager initialized")
+
+    # ------------------------------------------------------------------
+    # 17. I18N — depends on: (self-contained)
+    # ------------------------------------------------------------------
+    i18n = InMemoryI18nAdapter(default_locale="en", fallback_locale="en")
+    print("[17/17] I18nManager initialized")
+
+    # ==================================================================
+    # BOOTSTRAP ORCHESTRATOR
+    # ==================================================================
+    orchestrator = BootstrapOrchestrator(
+        config,
+        logger,
+        secrets,
+        observability,
+        error_handler,
+        auth,
+        cache,
+        db,
+        storage,
+        task_queue,
+        http_client,
+        feature_flags,
+        dependency_mgr,
+        prompt_assembler,
+        alert_mgr,
+        rate_limiter,
+        i18n,
+    )
+
+    print("\nStarting orchestrator...")
+    await orchestrator.run()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

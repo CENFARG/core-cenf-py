@@ -1,0 +1,138 @@
+# CENF Configuration — {{ project_name }}
+# All manager sections are pre-configured with sensible defaults.
+# Override via environment variables with CENF_ prefix.
+
+app:
+  name: "{{ project_name }}"
+  version: "0.1.0"
+  env: "dev"
+  log_level: "INFO"
+
+# ---------------------------------------------------------------------------
+# Manager configurations — one section per horizontal manager
+# ---------------------------------------------------------------------------
+
+config: {}
+
+logger:
+  profile: "dev"
+  log_level: "INFO"
+  output_path: null
+  include_timestamp: true
+  max_stack_depth: 10
+
+secrets:
+  backend: "local"
+  vault_url: null
+  vault_token_path: null
+  ttl_seconds: 300
+  cache_max_size: 100
+  encryption_algorithm: "fernet"
+
+errors:
+  max_retries_default: 3
+  retry_backoff_base: 2.0
+  retry_backoff_max: 30.0
+  buffer_max_size: 1000
+  include_stack_trace: true
+
+observability:
+  service_name: "{{ project_name }}"
+  exporter_endpoint: null
+  exporter_protocol: "grpc"
+  sampling_rate: 1.0
+  batch_size: 512
+  flush_interval_seconds: 5
+
+auth:
+  oidc_issuer: "https://auth.cenf.tech"
+  jwks_uri: null
+  jwks_cache_ttl_seconds: 3600
+  m2m_enabled: false
+  m2m_secret_path: null
+  audience: "{{ project_name }}"
+  clock_skew_seconds: 30
+
+cache:
+  backend: "memory"
+  redis_url: null
+  default_ttl_seconds: 300
+  max_key_length: 256
+  max_value_size_bytes: 1048576
+  stampede_probability: 0.1
+  namespace: "cenf"
+
+database:
+  url: "sqlite+aiosqlite:///./data.db"
+  pool_size: 10
+  max_overflow: 20
+  pool_timeout: 30
+  pool_recycle: 3600
+  pool_pre_ping: true
+  echo: false
+
+filestorage:
+  backend: "local"
+  local_root: "./data/files"
+  s3_bucket: null
+  s3_region: "us-east-1"
+  gcs_bucket: null
+  max_file_size_bytes: 104857600
+  presigned_url_default_hours: 1
+
+taskqueue:
+  redis_url: "redis://localhost:6379"
+  queue_name: "default"
+  worker_concurrency: 10
+  max_retries_default: 3
+  backoff_base_seconds: 2.0
+  backoff_max_seconds: 300.0
+  dlq_enabled: true
+  job_timeout_seconds: 300
+
+external_api:
+  default_timeout_seconds: 30.0
+  max_retries: 3
+  backoff_base_seconds: 2.0
+  backoff_max_seconds: 30.0
+  circuit_failure_threshold_pct: 50.0
+  circuit_recovery_timeout_seconds: 30.0
+  circuit_min_requests: 10
+  circuit_half_open_max_requests: 3
+  propagate_context: true
+
+feature_flags:
+  unleash_url: "http://localhost:4242/api"
+  unleash_api_token: null
+  app_name: "{{ project_name }}"
+  environment: "development"
+  refresh_interval_seconds: 10
+  streaming_enabled: true
+  fallback_enabled: true
+
+alert:
+  channels: {}
+  slack_webhook_url: null
+  discord_webhook_url: null
+  email_smtp_host: null
+  email_smtp_port: 587
+  email_from: null
+
+dependency:
+  allowlist: []
+  cache_resolution: true
+  cache_ttl_seconds: 300
+
+dynamic_prompting:
+  max_blocks: 16
+  default_priority: 10
+
+i18n:
+  default_locale: "en"
+  fallback_locale: "en"
+  translations_dir: "./locales"
+
+ratelimit:
+  default_capacity: 100
+  default_refill_rate: 10.0
+  window_type: "token_bucket"

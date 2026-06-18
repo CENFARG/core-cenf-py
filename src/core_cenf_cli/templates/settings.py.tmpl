@@ -1,0 +1,37 @@
+"""{{ project_name }} — Application settings.
+
+AppSettings extends CoreSettings from core-cenf with project-specific
+configuration fields. Use ConfigManager.get_section() to read these
+settings at runtime.
+
+Author: CENF AI Team
+Version: 0.1.0
+"""
+
+from __future__ import annotations
+
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from core_infrastructure.config.models import CoreSettings
+
+
+class AppSettings(CoreSettings):
+    """Application-specific settings extending CENF CoreSettings.
+
+    All CoreSettings fields (env, app_name, version, log_level) are
+    inherited. Add project-specific configuration fields below.
+
+    Attributes:
+        debug: Enable debug mode (verbose logging, trace sampling = 1.0).
+        api_port: Port for the HTTP API server (if applicable).
+        cors_origins: Allowed CORS origins as comma-separated string.
+    """
+
+    debug: bool = Field(default=False, description="Enable debug mode")
+    api_port: int = Field(default=8000, ge=1, le=65535, description="API server port")
+    cors_origins: str = Field(
+        default="*",
+        description="Comma-separated allowed CORS origins",
+    )

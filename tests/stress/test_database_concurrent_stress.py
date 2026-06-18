@@ -36,7 +36,9 @@ pytestmark = pytest.mark.stress
 class _Counter:
     """Test entity with id, value, and version fields."""
     def __init__(self, id: str | None = None, value: int = 0, version: int = 0) -> None:
-        self.id = id; self.value = value; self.version = version
+        self.id = id
+        self.value = value
+        self.version = version
 
 
 @pytest.fixture

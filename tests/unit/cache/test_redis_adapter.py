@@ -15,8 +15,7 @@ Version: 0.1.0
 from __future__ import annotations
 
 import json
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -117,7 +116,7 @@ class TestRedisCacheAdapterOperations:
         adapter._redis = mock_redis_client
         mock_redis_client.get.return_value = None  # simulate no result (async)
 
-        result = adapter.get("testkey")
+        adapter.get("testkey")
         mock_redis_client.get.assert_called_once()
         called_key = mock_redis_client.get.call_args[0][0]
         assert called_key == "cenf:cache:app:testkey"
@@ -138,7 +137,7 @@ class TestRedisCacheAdapterOperations:
         # For now, verify the adapter delegates correctly
         mock_redis_client.get.return_value = payload.encode() if hasattr(payload, "encode") else payload
 
-        result = adapter.get("user:1")
+        adapter.get("user:1")
         mock_redis_client.get.assert_called_once_with("cenf:cache:app:user:1")
 
     def test_set_calls_redis_set_with_serialized_value(
@@ -187,7 +186,7 @@ class TestRedisCacheAdapterOperations:
         adapter._redis = mock_redis_client
         mock_redis_client.exists.return_value = 1
 
-        result = adapter.exists("somekey")
+        adapter.exists("somekey")
         mock_redis_client.exists.assert_called_once_with("cenf:cache:app:somekey")
 
     def test_clear_calls_redis_flushdb(

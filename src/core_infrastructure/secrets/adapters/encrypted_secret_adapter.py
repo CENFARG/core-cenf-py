@@ -20,19 +20,18 @@ from __future__ import annotations
 import json
 import os
 import time
-from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
 from core_infrastructure.common.errors import PermanentError, ValidationError
-from core_infrastructure.secrets.models import SecretConfig, SecretValue
+from core_infrastructure.secrets.models import SecretConfig
 
 
 class _CacheEntry:
     """A cached decrypted secret with its expiration timestamp."""
 
-    __slots__ = ("value", "expires_at")
+    __slots__ = ("expires_at", "value")
 
     def __init__(self, value: str, ttl_seconds: int) -> None:
         self.value: str = value
@@ -119,7 +118,7 @@ class EncryptedSecretAdapter:
             PermanentError: If the file cannot be read or parsed.
         """
         try:
-            with open(self._storage_path, "r", encoding="utf-8") as fh:
+            with open(self._storage_path, encoding="utf-8") as fh:
                 data = json.load(fh)
         except FileNotFoundError:
             raise PermanentError(

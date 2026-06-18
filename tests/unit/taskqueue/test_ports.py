@@ -14,7 +14,7 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError as PydanticValidationError
@@ -117,7 +117,7 @@ class TestJobModel:
 
     def test_job_creation_with_required_fields(self) -> None:
         """Job creates with id, queue, payload, status."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         job = Job(
             id="job-001",
             queue="default",
@@ -136,8 +136,8 @@ class TestJobModel:
 
     def test_job_creation_with_all_fields(self) -> None:
         """Job accepts all optional fields."""
-        now = datetime.now(timezone.utc)
-        future = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
+        future = datetime.now(UTC)
         job = Job(
             id="job-002",
             queue="email",

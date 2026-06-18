@@ -164,7 +164,6 @@ class TestShutdownResilience:
         to proceed to shutdown. This simulates SIGTERM/SIGINT handling
         without needing real OS signal delivery.
         """
-        import asyncio
 
         await bootstrap_orchestrator_16.startup()
 

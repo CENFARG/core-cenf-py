@@ -20,20 +20,16 @@ from __future__ import annotations
 import pytest
 
 from core_infrastructure.alert.ports import AlertLevel, AlertRule
-from core_infrastructure.dependency.adapters.in_memory_dependency_adapter import (
-    InMemoryDependencyAdapter,
+from core_infrastructure.common.context import (
+    get_correlation_id,
+    get_tenant_id,
+    set_correlation_id,
 )
 from core_infrastructure.external_api.models import (
     CircuitState,
     RetryPolicy,
 )
-from core_infrastructure.feature_flags.models import FeatureFlag, FlagContext, FlagConfig
-from core_infrastructure.common.context import (
-    get_correlation_id,
-    get_tenant_id,
-    set_correlation_id,
-    set_tenant_id,
-)
+from core_infrastructure.feature_flags.models import FeatureFlag, FlagContext
 from core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter import (
     InMemoryRateLimitAdapter,
 )

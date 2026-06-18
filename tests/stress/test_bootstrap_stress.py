@@ -53,7 +53,9 @@ class _CycleService:
 class _SlowStartService:
     """Service with delayed startup."""
     def __init__(self, name: str, delay: float = 0.05) -> None:
-        self._name = name; self._delay = delay; self.started = False
+        self._name = name
+        self._delay = delay
+        self.started = False
 
     async def start(self) -> None:
         await asyncio.sleep(self._delay)
@@ -68,7 +70,9 @@ class _SlowStartService:
 class _DegradingService:
     """Service that degrades after a threshold of health checks."""
     def __init__(self, name: str, degrade_after: int = 5) -> None:
-        self._name = name; self._degrade_after = degrade_after; self.health_calls = 0
+        self._name = name
+        self._degrade_after = degrade_after
+        self.health_calls = 0
 
     async def start(self) -> None: pass
     async def stop(self) -> None: pass

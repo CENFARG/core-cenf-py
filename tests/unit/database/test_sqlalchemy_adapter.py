@@ -18,18 +18,16 @@ Version: 0.1.0
 from __future__ import annotations
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
-from core_infrastructure.database.ports import DatabaseManager, GenericRepository
+from core_infrastructure.database.ports import DatabaseManager
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
 from core_infrastructure.observability.adapters.in_memory_observability_adapter import (
     InMemoryObservabilityAdapter,
 )
 from core_infrastructure.secrets.adapters.in_memory_secret_adapter import InMemorySecretAdapter
-
 
 # ---------------------------------------------------------------------------
 # Test ORM model
@@ -364,7 +362,6 @@ class TestSQLAlchemyAdapterEngineConfig:
         assert db._engine is not None
 
         # Verify pool config was applied
-        pool = db._engine.pool
         # Default SQLAlchemy pool for async SQLite is NullPool, but config values are stored
         assert db._pool_size == 5
         assert db._max_overflow == 10

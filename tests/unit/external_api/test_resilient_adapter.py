@@ -26,9 +26,7 @@ from core_infrastructure.external_api.adapters.mock_http_adapter import (
     MockHTTPAdapter,
 )
 from core_infrastructure.external_api.models import (
-    ApiResponse,
     CircuitState,
-    RetryPolicy,
 )
 from core_infrastructure.external_api.ports import ExternalAPIManager
 

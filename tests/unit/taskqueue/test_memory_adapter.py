@@ -18,7 +18,7 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -26,7 +26,7 @@ from core_infrastructure.common.errors import ValidationError
 from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
     MemoryTaskQueueAdapter,
 )
-from core_infrastructure.taskqueue.models import Job, JobRef, JobStatus, QueueConfig
+from core_infrastructure.taskqueue.models import JobRef, JobStatus, QueueConfig
 from core_infrastructure.taskqueue.ports import TaskQueueManager
 
 
@@ -206,7 +206,7 @@ class TestScheduling:
     @pytest.mark.asyncio
     async def test_schedule_sets_execute_at(self, adapter: MemoryTaskQueueAdapter) -> None:
         """schedule() sets execute_at on the job."""
-        future = datetime.now(timezone.utc) + timedelta(minutes=5)
+        future = datetime.now(UTC) + timedelta(minutes=5)
         ref = await adapter.schedule("default", {"task": "future"}, execute_at=future)
         job = await adapter.get_job(ref.id)
         assert job is not None
@@ -215,7 +215,7 @@ class TestScheduling:
     @pytest.mark.asyncio
     async def test_scheduled_job_not_returned_by_dequeue_before_time(self, adapter: MemoryTaskQueueAdapter) -> None:
         """dequeue() skips jobs with execute_at in the future."""
-        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        future = datetime.now(UTC) + timedelta(hours=1)
         await adapter.schedule("default", {"task": "future"}, execute_at=future)
 
         job = await adapter.dequeue("default")
@@ -224,7 +224,7 @@ class TestScheduling:
     @pytest.mark.asyncio
     async def test_scheduled_job_returned_by_dequeue_after_time(self, adapter: MemoryTaskQueueAdapter) -> None:
         """dequeue() returns jobs with execute_at in the past."""
-        past = datetime.now(timezone.utc) - timedelta(minutes=5)
+        past = datetime.now(UTC) - timedelta(minutes=5)
         ref = await adapter.schedule("default", {"task": "ready"}, execute_at=past)
 
         job = await adapter.dequeue("default")

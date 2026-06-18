@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-
 # ---------------------------------------------------------------------------
 # SecretRef — reference to a secret by key and namespace
 # ---------------------------------------------------------------------------

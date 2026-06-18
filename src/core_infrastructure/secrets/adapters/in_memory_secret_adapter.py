@@ -27,7 +27,7 @@ from core_infrastructure.secrets.models import SecretConfig, SecretValue
 class _CacheEntry:
     """A cached secret with its expiration timestamp."""
 
-    __slots__ = ("value", "expires_at")
+    __slots__ = ("expires_at", "value")
 
     def __init__(self, value: SecretValue, ttl_seconds: int) -> None:
         self.value: SecretValue = value

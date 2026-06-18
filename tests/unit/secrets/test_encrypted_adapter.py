@@ -12,10 +12,8 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
-import asyncio
 import os
 import tempfile
-from pathlib import Path
 
 import pytest
 from cryptography.fernet import Fernet
@@ -43,9 +41,8 @@ def temp_secret_file(fernet_key: bytes) -> str:
     }
     import json
 
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False)
-    json.dump(data, tmp)
-    tmp.close()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
+        json.dump(data, tmp)
     yield tmp.name
     os.unlink(tmp.name)
 

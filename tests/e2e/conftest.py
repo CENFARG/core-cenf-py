@@ -43,7 +43,6 @@ from core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter import (
 from core_infrastructure.secrets.adapters.in_memory_secret_adapter import InMemorySecretAdapter
 from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import MemoryTaskQueueAdapter
 
-
 # ---------------------------------------------------------------------------
 # Lifecycle wrapper — adds AsyncLifecycle to any adapter
 # ---------------------------------------------------------------------------

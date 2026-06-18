@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core_infrastructure.common.errors import PermanentError, TransientError, ValidationError
+from core_infrastructure.common.errors import TransientError
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.filestorage.adapters.gcs_storage_adapter import GcsStorageAdapter

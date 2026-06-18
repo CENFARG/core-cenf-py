@@ -15,7 +15,7 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 

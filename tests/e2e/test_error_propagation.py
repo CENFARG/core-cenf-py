@@ -16,12 +16,6 @@ from __future__ import annotations
 import pytest
 
 from core_infrastructure.bootstrap import BootstrapOrchestrator
-from core_infrastructure.common.context import (
-    get_correlation_id,
-    get_tenant_id,
-    set_correlation_id,
-    set_tenant_id,
-)
 from core_infrastructure.common.errors import (
     PermanentError,
     TransientError,
@@ -30,9 +24,6 @@ from core_infrastructure.common.errors import (
 from core_infrastructure.common.lifecycle import HealthStatus
 from core_infrastructure.dependency.adapters.in_memory_dependency_adapter import (
     InMemoryDependencyAdapter,
-)
-from core_infrastructure.errors.adapters.classification_adapter import (
-    ClassificationAdapter,
 )
 from core_infrastructure.errors.models import ErrorClassification
 from core_infrastructure.external_api.models import CircuitState
@@ -131,7 +122,7 @@ class TestHandleErrorsDecorator:
 
         # Logger should have recorded the error
         logs = logger_manager._adapter.get_logs()
-        error_logs = [l for l in logs if l["level"] == "ERROR"]
+        error_logs = [entry for entry in logs if entry["level"] == "ERROR"]
         assert len(error_logs) >= 1, "Expected at least one ERROR log after handle_errors"
         assert "PERMANENT" in error_logs[-1]["message"] or "PERMANENT" in error_logs[-1].get("error_type", "")
 
@@ -155,7 +146,7 @@ class TestHandleErrorsDecorator:
             flaky_op()
 
         logs = logger_manager._adapter.get_logs()
-        error_logs = [l for l in logs if l["level"] == "ERROR"]
+        error_logs = [entry for entry in logs if entry["level"] == "ERROR"]
         assert len(error_logs) >= 1
         assert "TRANSIENT" in error_logs[-1].get("error_type", "")
         # Verify OTel counter was emitted with TRANSIENT classification
@@ -255,7 +246,7 @@ class TestCircuitBreakerToAlertPropagation:
         external_api_manager._adapter.set_response("GET", url, status_code=500)
 
         # Register alert rule for circuit events
-        from core_infrastructure.alert.ports import AlertRule, AlertLevel
+        from core_infrastructure.alert.ports import AlertLevel, AlertRule
         rule = AlertRule(
             rule_id="circuit-trip-alert",
             condition={"host": host},

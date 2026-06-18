@@ -118,7 +118,7 @@ class GcsStorageAdapter:
             TransientError: If the download fails.
         """
         try:
-            return await self._client.download(bucket, key)
+            return await self._client.download(bucket, key)  # type: ignore[no-any-return]
         except Exception as exc:
             raise TransientError(
                 f"GCS download failed: {bucket}/{key}",

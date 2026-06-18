@@ -105,7 +105,7 @@ python_version = "3.12"
 strict = true
 enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
 warn_unreachable = true
-warn_unused_ignores = true
+warn_unused_ignores = false  # optional deps without stubs cause CI/local mismatch
 show_error_codes = true
 
 [[tool.mypy.overrides]]

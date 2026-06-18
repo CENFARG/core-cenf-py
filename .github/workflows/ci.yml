@@ -23,11 +23,11 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Create venv and install core + dev deps
+      - name: Create venv and install core + dev + all optional deps
         run: |
           uv venv .venv
           . .venv/bin/activate
-          uv pip install -e ".[dev]"
+          uv pip install -e ".[dev,all,gcs,azure,saq]"
 
       - name: Lint (ruff)
         run: |

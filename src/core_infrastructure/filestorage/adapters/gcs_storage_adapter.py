@@ -118,7 +118,7 @@ class GcsStorageAdapter:
             TransientError: If the download fails.
         """
         try:
-            return await self._client.download(bucket, key)
+            return await self._client.download(bucket, key)  # type: ignore[no-any-return]
         except Exception as exc:
             raise TransientError(
                 f"GCS download failed: {bucket}/{key}",
@@ -174,7 +174,7 @@ class GcsStorageAdapter:
             PermanentError: If URL generation fails.
         """
         try:
-            return await self._client.get_download_url(  # type: ignore[attr-defined, no-any-return]
+            return await self._client.get_download_url(  # type: ignore[no-any-return]
                 bucket, key, expiration=expiry
             )
         except Exception as exc:

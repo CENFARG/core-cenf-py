@@ -7,4 +7,8 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
-# Adapters will be exported as they are implemented.
+from core_infrastructure.permission.adapters.in_memory_permission_adapter import (
+    InMemoryPermissionAdapter,
+)
+
+__all__ = ["InMemoryPermissionAdapter"]

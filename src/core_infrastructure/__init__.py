@@ -99,6 +99,13 @@ from core_infrastructure.i18n.adapters.in_memory_i18n_adapter import InMemoryI18
 from core_infrastructure.i18n.adapters.yaml_i18n_adapter import YamlI18nAdapter
 from core_infrastructure.i18n.models import I18nConfig
 from core_infrastructure.i18n.ports import I18nManager
+from core_infrastructure.licence.adapters.in_memory_licence_adapter import (
+    InMemoryLicenceAdapter,
+)
+
+# Licence Manager (Protocols + models — zero optional deps)
+from core_infrastructure.licence.models import LicenceConfig, LicenseClaims
+from core_infrastructure.licence.ports import LicenceManager, LicenseInfo
 from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
 from core_infrastructure.logger.adapters.structlog_adapter import StructlogAdapter
 from core_infrastructure.logger.models import LoggerSettings
@@ -146,6 +153,14 @@ try:
 except ImportError:
     JwtAuthAdapter = None  # type: ignore[assignment,misc]
     StaticAuthAdapter = None  # type: ignore[assignment,misc]
+
+# Licence adapters (need: python-jose)
+try:
+    from core_infrastructure.licence.adapters.jwt_licence_adapter import (
+        JwtLicenceAdapter,
+    )
+except ImportError:
+    JwtLicenceAdapter = None  # type: ignore[assignment,misc]
 
 # Cache adapters (need: redis)
 try:

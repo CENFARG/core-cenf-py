@@ -49,6 +49,9 @@ const sidebars: SidebarsConfig = {
         'managers/alert-manager',
         'managers/ratelimit-manager',
         'managers/i18n-manager',
+        'managers/permission-manager',
+        'managers/licence-manager',
+        'managers/update-manager',
       ],
     },
     {

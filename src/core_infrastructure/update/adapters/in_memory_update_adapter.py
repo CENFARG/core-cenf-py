@@ -117,6 +117,9 @@ class InMemoryUpdateAdapter:
         self._releases: dict[str, AvailableRelease] = {}
         self._rollback_states: dict[str, RollbackState] = {}
         self._current_versions: dict[str, str] = {}
+        self._current_hashes: dict[str, str] = {}
+        # Test hooks
+        self._fail_next_apply: bool = False
 
     # ── Test helpers ──────────────────────────────────────────────────────
 
@@ -209,37 +212,61 @@ class InMemoryUpdateAdapter:
         """Apply the update and save rollback state.
 
         Saves the current version as rollback state, then updates the
-        current version. No actual installation is performed.
+        current version. If the apply fails and rollback is enabled,
+        automatically restores the previous version.
+
+        Test hooks: set ``_fail_next_apply = True`` before calling to
+        simulate an installation failure.
 
         Args:
             app_id: The application identifier.
             artifact: The UpdateArtifact to apply.
 
         Returns:
-            UpdateResult: Success result with the new version derived
-                from the artifact URL.
+            UpdateResult: Success or failure result.
         """
-        # Extract version from artifact URL (simplistic — real adapter
-        # would get this from the release metadata).
         previous = await self.get_current_version(app_id=app_id)
+        previous_hash = self._current_hashes.get(app_id, artifact.hash())
 
-        # Save rollback state
+        # Save rollback state BEFORE attempting apply
         self._rollback_states[app_id] = RollbackState(
             previous_version=previous,
-            previous_hash=artifact.hash(),
+            previous_hash=previous_hash,
             rollback_available=True,
         )
 
-        # Derive new version from the release — for the test adapter,
-        # we use the artifact's platform information as a signal.
-        # In the real adapter, this comes from the AvailableRelease.
-        new_version = self._resolve_new_version(app_id, artifact)
+        # Check test hook for simulated failure
+        if self._fail_next_apply:
+            self._fail_next_apply = False
 
+            # Auto-rollback if enabled
+            if self._config.rollback_enabled:
+                self._current_versions[app_id] = previous
+                return _UpdateResult(
+                    success=False,
+                    error="Apply failed: simulated error (auto-rollback triggered)",
+                )
+            else:
+                # Still update the version to simulate partial failure
+                new_version = self._resolve_new_version(app_id, artifact)
+                self._current_versions[app_id] = new_version
+                self._current_hashes[app_id] = artifact.hash()
+                return _UpdateResult(
+                    success=False,
+                    error="Apply failed: simulated error",
+                )
+
+        # Normal success path
+        new_version = self._resolve_new_version(app_id, artifact)
         self._current_versions[app_id] = new_version
+        self._current_hashes[app_id] = artifact.hash()
         return _UpdateResult(success=True, new_version=new_version)
 
     async def rollback(self, *, app_id: str) -> UpdateResult:
         """Restore the previous known-good version.
+
+        Verifies that the current state matches the rollback hash before
+        restoring. Raises PermanentError if hash integrity check fails.
 
         Args:
             app_id: The application identifier.
@@ -248,12 +275,21 @@ class InMemoryUpdateAdapter:
             UpdateResult: Success result with the restored version.
 
         Raises:
-            PermanentError: If no rollback state exists for the app.
+            PermanentError: If no rollback state exists or hash mismatch.
         """
         state = self._rollback_states.get(app_id)
         if state is None or not state.rollback_available:
             raise PermanentError(
                 f"No rollback state available for app '{app_id}'"
+            )
+
+        # Verify rollback integrity: current hash must match stored hash
+        current_hash = self._current_hashes.get(app_id, "")
+        if current_hash != state.previous_hash and self._current_versions.get(app_id) != state.previous_version:
+            raise PermanentError(
+                "Rollback hash mismatch: the current state does not "
+                "match the expected rollback state",
+                details={"reason": "hash_mismatch"},
             )
 
         self._current_versions[app_id] = state.previous_version
@@ -342,3 +378,20 @@ class InMemoryUpdateAdapter:
         )
         v = Version(current)
         return f"{v.major}.{v.minor}.{v.micro + 1}"
+
+    def _tamper_rollback_hash(self, app_id: str, new_hash: str) -> None:
+        """Tamper with the rollback state hash (test helper).
+
+        Used to simulate rollback hash integrity failures.
+
+        Args:
+            app_id: The application identifier.
+            new_hash: The new (invalid) hash to inject.
+        """
+        state = self._rollback_states.get(app_id)
+        if state is not None:
+            self._rollback_states[app_id] = RollbackState(
+                previous_version=state.previous_version,
+                previous_hash=new_hash,
+                rollback_available=state.rollback_available,
+            )

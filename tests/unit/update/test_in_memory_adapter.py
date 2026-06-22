@@ -407,6 +407,93 @@ class TestRollback:
             await adapter.rollback(app_id="test-app")
 
 
+# ── Rollback: auto-rollback on apply failure ──────────────────────────────
+
+class TestAutoRollbackOnApplyFailure:
+    """Tests for automatic rollback when apply_update fails."""
+
+    @pytest.mark.asyncio
+    async def test_auto_rollback_on_apply_failure(
+        self, config, artifact_win
+    ) -> None:
+        """apply_update with rollback_enabled=True auto-rolls back on failure."""
+        from core_infrastructure.update.adapters.in_memory_update_adapter import (
+            InMemoryUpdateAdapter,
+        )
+
+        adapter = InMemoryUpdateAdapter(config=config)
+        adapter._fail_next_apply = True
+
+        result = await adapter.apply_update(
+            app_id="test-app", artifact=artifact_win
+        )
+        assert result.success() is False
+        assert result.error() is not None
+        assert "rollback" in result.error().lower()
+
+        # Version should be restored to configured current
+        version = await adapter.get_current_version(app_id="test-app")
+        assert version == "1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_no_auto_rollback_when_disabled(
+        self, artifact_win
+    ) -> None:
+        """apply_update with rollback_enabled=False does NOT auto-rollback."""
+        from core_infrastructure.update.adapters.in_memory_update_adapter import (
+            InMemoryUpdateAdapter,
+        )
+
+        cfg = UpdateConfig(
+            update_url="https://updates.example.com",
+            public_key="key",
+            current_version="1.0.0",
+            rollback_enabled=False,
+        )
+        adapter = InMemoryUpdateAdapter(config=cfg)
+        adapter._fail_next_apply = True
+
+        result = await adapter.apply_update(
+            app_id="test-app", artifact=artifact_win
+        )
+        assert result.success() is False
+
+        # Version should NOT be restored — should be whatever apply left it
+        version = await adapter.get_current_version(app_id="test-app")
+        assert version != "1.0.0"
+
+
+# ── Rollback: hash integrity ──────────────────────────────────────────────
+
+class TestRollbackHashIntegrity:
+    """Tests for rollback hash integrity verification."""
+
+    @pytest.mark.asyncio
+    async def test_rollback_fails_on_hash_mismatch(
+        self, adapter, artifact_win
+    ) -> None:
+        """rollback raises PermanentError when previous_hash doesn't match."""
+        # Apply an update first to create rollback state
+        await adapter.apply_update(app_id="test-app", artifact=artifact_win)
+
+        # Tamper with the rollback state hash
+        adapter._tamper_rollback_hash("test-app", "0" * 64)
+
+        with pytest.raises(PermanentError, match=r"hash"):
+            await adapter.rollback(app_id="test-app")
+
+    @pytest.mark.asyncio
+    async def test_rollback_succeeds_when_hash_matches(
+        self, adapter, artifact_win
+    ) -> None:
+        """rollback succeeds when previous_hash matches."""
+        await adapter.apply_update(app_id="test-app", artifact=artifact_win)
+
+        result = await adapter.rollback(app_id="test-app")
+        assert result.success() is True
+        assert result.new_version() == "1.0.0"
+
+
 # ── Protocol compliance ─────────────────────────────────────────────────────
 
 class TestProtocolCompliance:

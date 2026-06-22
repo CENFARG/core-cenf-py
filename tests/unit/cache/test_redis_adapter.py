@@ -189,18 +189,79 @@ class TestRedisCacheAdapterOperations:
         adapter.exists("somekey")
         mock_redis_client.exists.assert_called_once_with("cenf:cache:app:somekey")
 
-    def test_clear_calls_redis_flushdb(
+    def test_clear_uses_scan_and_delete_not_flushdb(
         self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
         mock_redis_client: MagicMock,
     ) -> None:
-        """clear() calls redis.flushdb()."""
+        """clear() uses SCAN+DELETE with key prefix, NOT FLUSHDB."""
         from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
 
         adapter = RedisCacheAdapter(config, secrets, logger)
         adapter._redis = mock_redis_client
 
+        # Setup: SCAN returns keys matching the prefixed pattern
+        mock_redis_client.scan = AsyncMock(side_effect=[
+            (42, [b"cenf:cache:app:key1", b"cenf:cache:app:key2"]),
+            (0, []),  # cursor 0 means iteration complete
+        ])
+
         adapter.clear()
-        mock_redis_client.flushdb.assert_called_once()
+
+        # SCAN must be called with the key prefix pattern
+        mock_redis_client.scan.assert_called()
+        scan_call_kwargs = mock_redis_client.scan.call_args_list[0][1]
+        assert scan_call_kwargs.get("match") == "cenf:cache:app:*"
+
+        # DELETE must be called with the discovered keys
+        mock_redis_client.delete.assert_called_once_with(
+            b"cenf:cache:app:key1", b"cenf:cache:app:key2"
+        )
+
+        # FLUSHDB must NEVER be called
+        mock_redis_client.flushdb.assert_not_called()
+
+    def test_clear_scan_multiple_iterations(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """clear() handles multiple SCAN iterations (cursor > 0)."""
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+
+        # Setup: 2 iterations with cursor 55, then cursor 0
+        mock_redis_client.scan = AsyncMock(side_effect=[
+            (55, [b"cenf:cache:app:a"]),
+            (0, [b"cenf:cache:app:b"]),
+        ])
+
+        adapter.clear()
+
+        # SCAN called twice (two iterations)
+        assert mock_redis_client.scan.call_count == 2
+        # DELETE called twice (once per iteration)
+        assert mock_redis_client.delete.call_count == 2
+        mock_redis_client.delete.assert_any_call(b"cenf:cache:app:a")
+        mock_redis_client.delete.assert_any_call(b"cenf:cache:app:b")
+
+    def test_clear_empty_scan_no_delete(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """clear() handles empty SCAN result without calling DELETE."""
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+
+        # SCAN returns no keys
+        mock_redis_client.scan = AsyncMock(return_value=(0, []))
+
+        adapter.clear()
+
+        # DELETE should NOT be called when SCAN returns empty
+        mock_redis_client.delete.assert_not_called()
 
 
 class TestRedisCacheAdapterGracefulDegradation:

@@ -243,9 +243,11 @@ class RedisCacheAdapter(CacheManager):
         return bool(result)
 
     def clear(self) -> None:
-        """Remove ALL entries from Redis via ``FLUSHDB``.
+        """Remove ALL entries with the adapter's key prefix via SCAN+DELETE.
 
-        CAUTION: ``FLUSHDB`` clears ALL keys in the current Redis database.
+        Uses SCAN with ``{prefix}*`` pattern to find and DELETE only keys
+        belonging to this adapter's namespace. Other keys in the database
+        are never touched.
 
         Raises:
             TransientError: If Redis is unreachable.
@@ -254,7 +256,19 @@ class RedisCacheAdapter(CacheManager):
         if self._redis is None:
             return
 
-        self._run_redis(lambda: self._redis.flushdb())
+        async def _clear_async() -> None:
+            pattern = f"{self._key_prefix}*"
+            cursor = 0
+            while True:
+                cursor, keys = await self._redis.scan(
+                    cursor, match=pattern, count=100
+                )
+                if keys:
+                    await self._redis.delete(*keys)
+                if cursor == 0:
+                    break
+
+        self._run_redis(_clear_async)
 
     def get_or_set(self, key: str, factory: Callable[[], Any], ttl: int | None = None) -> Any:
         """Get a value from cache or compute and cache it.

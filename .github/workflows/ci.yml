@@ -44,7 +44,7 @@ jobs:
       - name: Test (pytest)
         run: |
           . .venv/bin/activate
-          python -m pytest tests/ -q --tb=short --cache-clear
+          python -m pytest tests/ -q --tb=short --import-mode=importlib
 
   security:
     name: Security Scan

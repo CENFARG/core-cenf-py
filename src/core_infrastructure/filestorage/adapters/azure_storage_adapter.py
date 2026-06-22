@@ -12,7 +12,6 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-import contextlib
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -22,12 +21,17 @@ from azure.storage.blob import (
     generate_blob_sas,
 )
 
-from core_infrastructure.common.errors import TransientError
+from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.config.ports import ConfigManager
 from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.filestorage.models import FileRef, UploadResult
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.secrets.ports import SecretManager
+
+try:
+    from azure.core.exceptions import ResourceNotFoundError
+except ImportError:  # pragma: no cover
+    ResourceNotFoundError = Exception  # type: ignore[assignment,misc]
 
 
 class AzureStorageAdapter:
@@ -84,6 +88,57 @@ class AzureStorageAdapter:
         return self._service_client.get_container_client(bucket)
 
     # ------------------------------------------------------------------
+    # Internal: error classification
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _classify_azure_error(exc: Exception) -> type[PermanentError] | type[TransientError]:
+        """Classify an Azure exception as permanent or transient.
+
+        Inspects Azure SDK exception types. ResourceNotFoundError (404)
+        is permanent. Everything else defaults to transient (network
+        timeouts, 5xx, etc.).
+
+        Args:
+            exc: The exception raised by the Azure client.
+
+        Returns:
+            PermanentError or TransientError class.
+        """
+        if isinstance(exc, ResourceNotFoundError):
+            return PermanentError
+        # Default: transient (network errors, timeouts, 5xx, etc.)
+        return TransientError
+
+    def _raise_classified(
+        self,
+        exc: Exception,
+        *,
+        operation: str,
+        bucket: str,
+        key: str,
+    ) -> None:
+        """Classify, report, and raise a structured Azure error.
+
+        Args:
+            exc: The original exception from the Azure client.
+            operation: Human-readable operation name (e.g. "upload").
+            bucket: The Azure container name.
+            key: The blob name.
+
+        Raises:
+            PermanentError: If the error is classified as permanent.
+            TransientError: If the error is classified as transient.
+        """
+        error_cls = self._classify_azure_error(exc)
+        error = error_cls(
+            f"Azure {operation} failed: {bucket}/{key}",
+            details={"bucket": bucket, "key": key, "error": str(exc)},
+        )
+        self._error_handler.report(error, context={"bucket": bucket, "key": key})
+        raise error from exc
+
+    # ------------------------------------------------------------------
     # Public API — FileStorageManager Protocol
     # ------------------------------------------------------------------
 
@@ -106,16 +161,19 @@ class AzureStorageAdapter:
             UploadResult: Metadata about the uploaded blob.
 
         Raises:
-            TransientError: If the upload fails.
+            TransientError: If the upload fails due to a transient issue.
+            PermanentError: If the upload fails due to a permanent issue.
         """
         blob_client = self._get_blob_client(bucket, key)
         try:
             result = blob_client.upload_blob(data, content_type=content_type)
         except Exception as exc:
-            raise TransientError(
-                f"Azure upload failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="upload",
+                bucket=bucket,
+                key=key,
+            )
 
         etag = result.get("etag", "")
         url = result.get("url", "")
@@ -136,17 +194,20 @@ class AzureStorageAdapter:
             bytes: The raw blob data.
 
         Raises:
-            TransientError: If the download fails.
+            TransientError: If the download fails due to a transient issue.
+            PermanentError: If the download fails due to a permanent issue.
         """
         blob_client = self._get_blob_client(bucket, key)
         try:
             downloader = blob_client.download_blob()
             return downloader.readall()  # type: ignore[no-any-return]
         except Exception as exc:
-            raise TransientError(
-                f"Azure download failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="download",
+                bucket=bucket,
+                key=key,
+            )
 
     async def delete(self, bucket: str, key: str) -> None:
         """Delete an object from Azure Blob Storage.
@@ -158,8 +219,11 @@ class AzureStorageAdapter:
             key: The blob name.
         """
         blob_client = self._get_blob_client(bucket, key)
-        with contextlib.suppress(Exception):
+        try:
             blob_client.delete_blob()
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "AzureStorageAdapter.delete", "bucket": bucket, "key": key})
 
     async def exists(self, bucket: str, key: str) -> bool:
         """Check if a blob exists in Azure Blob Storage.
@@ -174,7 +238,9 @@ class AzureStorageAdapter:
         blob_client = self._get_blob_client(bucket, key)
         try:
             return bool(blob_client.exists())
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "AzureStorageAdapter.exists", "bucket": bucket, "key": key})
             return False
 
     async def generate_presigned_url(
@@ -198,7 +264,8 @@ class AzureStorageAdapter:
             str: A time-limited URL with SAS token.
 
         Raises:
-            TransientError: If SAS token generation fails.
+            TransientError: If SAS token generation fails due to a transient issue.
+            PermanentError: If SAS token generation fails due to a permanent issue.
         """
         blob_client = self._get_blob_client(bucket, key)
         try:
@@ -212,10 +279,12 @@ class AzureStorageAdapter:
             )
             return f"{blob_client.url}?{sas_token}"
         except Exception as exc:
-            raise TransientError(
-                f"Azure SAS token generation failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="SAS token generation",
+                bucket=bucket,
+                key=key,
+            )
 
     async def list_objects(
         self,
@@ -234,7 +303,9 @@ class AzureStorageAdapter:
         container_client = self._get_container_client(bucket)
         try:
             blobs = container_client.list_blobs(name_starts_with=prefix)
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "AzureStorageAdapter.list_objects", "bucket": bucket, "prefix": prefix})
             return []
 
         results: list[FileRef] = []

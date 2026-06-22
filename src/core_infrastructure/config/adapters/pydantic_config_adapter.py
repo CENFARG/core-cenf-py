@@ -24,6 +24,7 @@ import yaml
 from core_infrastructure.common.errors import PermanentError, ValidationError
 from core_infrastructure.config.models import CoreSettings
 from core_infrastructure.config.ports import Env
+from core_infrastructure.errors.ports import ErrorHandlingManager
 
 
 def _resolve_dotted_key(data: dict[str, Any], key: str) -> Any:
@@ -65,11 +66,13 @@ class PydanticConfigAdapter:
         self,
         env_prefix: str = "CENF_",
         config_path: str | None = None,
+        error_handler: ErrorHandlingManager | None = None,
     ) -> None:
         self._env_prefix = env_prefix
         self._config_path = config_path
         self._config: dict[str, Any] = {}
         self._reload_lock = asyncio.Lock()
+        self._error_handler = error_handler
         self._load_config()
 
     # ------------------------------------------------------------------
@@ -353,7 +356,13 @@ class PydanticConfigAdapter:
         Observability: Reload events are logged at INFO level.
         """
         async with self._reload_lock:
-            self._load_config()
+            try:
+                self._load_config()
+            except Exception as exc:
+                if self._error_handler is not None:
+                    self._error_handler.report(
+                        exc, context={"source": "PydanticConfigAdapter.reload"})
+                raise
 
     def get_json_schema(self) -> dict[str, Any]:
         """Return the JSON Schema describing CoreSettings.

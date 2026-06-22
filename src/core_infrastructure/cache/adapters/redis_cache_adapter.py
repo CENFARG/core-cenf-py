@@ -31,6 +31,7 @@ from core_infrastructure.cache.adapters.redis_cache_adapter_helpers import (
 )
 from core_infrastructure.cache.ports import CacheManager
 from core_infrastructure.config.ports import ConfigManager
+from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.secrets.ports import SecretManager
 
@@ -61,10 +62,12 @@ class RedisCacheAdapter(CacheManager):
         config: ConfigManager,
         secrets: SecretManager,
         logger: LoggerManager,
+        error_handler: ErrorHandlingManager | None = None,
     ) -> None:
         self._config = config
         self._secrets = secrets
         self._logger = logger
+        self._error_handler = error_handler
 
         redis_url = config.get_string("cache.redis.url", default_value="redis://localhost:6379/0")
         self._ttl: int = int(config.get_number("cache.redis.ttl", default_value=self._DEFAULT_TTL))
@@ -82,6 +85,12 @@ class RedisCacheAdapter(CacheManager):
                 "RedisCacheAdapter: Redis unavailable, falling back to in-memory mode",
                 redis_url=self._logger.mask(redis_url, visible_chars=0),
             )
+
+        # Apply error handler decorator to public methods if available
+        if self._error_handler is not None:
+            self.get = self._error_handler.handle_errors()(self.get)
+            self.set = self._error_handler.handle_errors()(self.set)
+            self.delete = self._error_handler.handle_errors()(self.delete)
 
     # ------------------------------------------------------------------
     # Public API — CacheManager Protocol

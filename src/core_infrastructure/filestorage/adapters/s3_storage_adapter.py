@@ -11,18 +11,37 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
 from aiobotocore.session import AioSession
 from botocore.exceptions import ClientError
 
-from core_infrastructure.common.errors import TransientError
+from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.config.ports import ConfigManager
 from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.filestorage.models import FileRef, UploadResult
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.secrets.ports import SecretManager
+
+# S3 error codes that indicate a permanent (non-retryable) failure.
+_PERMANENT_S3_CODES: frozenset[str] = frozenset({
+    "404",
+    "NoSuchKey",
+    "NoSuchBucket",
+    "AccessDenied",
+    "InvalidAccessKeyId",
+    "SignatureDoesNotMatch",
+})
+
+# S3 error codes that indicate a transient (retryable) failure.
+_TRANSIENT_S3_CODES: frozenset[str] = frozenset({
+    "500",
+    "503",
+    "Throttling",
+    "ServiceUnavailable",
+    "SlowDown",
+    "InternalError",
+})
 
 
 class S3StorageAdapter:
@@ -72,6 +91,61 @@ class S3StorageAdapter:
         return self._client
 
     # ------------------------------------------------------------------
+    # Internal: error classification
+    # ------------------------------------------------------------------
+
+    def _classify_s3_error(self, exc: Exception) -> type[PermanentError] | type[TransientError]:
+        """Classify an S3 exception as permanent or transient.
+
+        Inspects botocore ClientError response codes. Defaults to transients
+        for unknown exceptions (network timeouts, connection errors, etc.).
+
+        Args:
+            exc: The exception raised by the S3 client.
+
+        Returns:
+            PermanentError or TransientError class.
+        """
+        # Check for botocore ClientError with known codes
+        try:
+            error_code = exc.response["Error"]["Code"]  # type: ignore[union-attr]
+        except (AttributeError, KeyError, TypeError):
+            # Not a ClientError or missing response structure → transient
+            return TransientError
+
+        if error_code in _PERMANENT_S3_CODES:
+            return PermanentError
+        return TransientError
+
+    def _raise_classified(
+        self,
+        exc: Exception,
+        *,
+        operation: str,
+        bucket: str,
+        key: str,
+    ) -> None:
+        """Classify, report, and raise a structured S3 error.
+
+        Args:
+            exc: The original exception from the S3 client.
+            operation: Human-readable operation name (e.g. "upload").
+            bucket: The S3 bucket name.
+            key: The object key.
+
+        Raises:
+            PermanentError: If the error is classified as permanent.
+            TransientError: If the error is classified as transient.
+        """
+        error_cls = self._classify_s3_error(exc)
+        error = error_cls(
+            f"S3 {operation} failed: {bucket}/{key}",
+            details={"bucket": bucket, "key": key, "error": str(exc)},
+        )
+        self._error_handler.report(error, context={"bucket": bucket, "key": key})
+        raise error from exc
+
+    # ------------------------------------------------------------------
     # Public API — FileStorageManager Protocol
     # ------------------------------------------------------------------
 
@@ -94,7 +168,8 @@ class S3StorageAdapter:
             UploadResult: Metadata about the uploaded object.
 
         Raises:
-            TransientError: If the upload fails.
+            TransientError: If the upload fails due to a transient issue.
+            PermanentError: If the upload fails due to a permanent issue.
         """
         client = await self._get_client()
         try:
@@ -102,10 +177,12 @@ class S3StorageAdapter:
                 Bucket=bucket, Key=key, Body=data, ContentType=content_type,
             )
         except Exception as exc:
-            raise TransientError(
-                f"S3 upload failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="upload",
+                bucket=bucket,
+                key=key,
+            )
 
         etag = result.get("ETag", "").strip('"')
         location = result.get("Location", "")
@@ -126,16 +203,19 @@ class S3StorageAdapter:
             bytes: The raw object data.
 
         Raises:
-            TransientError: If the download fails.
+            TransientError: If the download fails due to a transient issue.
+            PermanentError: If the download fails due to a permanent issue.
         """
         client = await self._get_client()
         try:
             result = await client.get_object(Bucket=bucket, Key=key)
         except Exception as exc:
-            raise TransientError(
-                f"S3 download failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="download",
+                bucket=bucket,
+                key=key,
+            )
 
         body = result["Body"]
         return await body.read()  # type: ignore[no-any-return]
@@ -150,8 +230,11 @@ class S3StorageAdapter:
             key: The object key.
         """
         client = await self._get_client()
-        with contextlib.suppress(Exception):
+        try:
             await client.delete_object(Bucket=bucket, Key=key)
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "S3StorageAdapter.delete", "bucket": bucket, "key": key})
 
     async def exists(self, bucket: str, key: str) -> bool:
         """Check if an object exists in S3.
@@ -172,8 +255,12 @@ class S3StorageAdapter:
         except ClientError as exc:
             if exc.response["Error"]["Code"] == "404":
                 return False
+            self._error_handler.report(
+                exc, context={"source": "S3StorageAdapter.exists", "bucket": bucket, "key": key})
             return False
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "S3StorageAdapter.exists", "bucket": bucket, "key": key})
             return False
 
     async def generate_presigned_url(
@@ -193,7 +280,8 @@ class S3StorageAdapter:
             str: A time-limited pre-signed URL.
 
         Raises:
-            TransientError: If URL generation fails.
+            TransientError: If URL generation fails due to a transient issue.
+            PermanentError: If URL generation fails due to a permanent issue.
         """
         client = await self._get_client()
         try:
@@ -204,10 +292,12 @@ class S3StorageAdapter:
             )
             return url  # type: ignore[no-any-return]
         except Exception as exc:
-            raise TransientError(
-                f"S3 pre-signed URL generation failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="pre-signed URL generation",
+                bucket=bucket,
+                key=key,
+            )
 
     async def list_objects(
         self,
@@ -226,7 +316,9 @@ class S3StorageAdapter:
         client = await self._get_client()
         try:
             result = await client.list_objects_v2(Bucket=bucket, Prefix=prefix)
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "S3StorageAdapter.list_objects", "bucket": bucket, "prefix": prefix})
             return []
 
         contents = result.get("Contents", [])

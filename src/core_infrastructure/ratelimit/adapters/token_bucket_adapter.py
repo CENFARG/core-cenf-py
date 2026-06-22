@@ -312,29 +312,34 @@ class TokenBucketAdapter:
         Returns:
             bool: ``True`` if allowed, ``False`` if rate-limited.
         """
-        lock = self._get_or_create_lock(bucket_key)
-        async with lock:
-            if bucket_key in self._window_configs:
-                timestamps, cap, rate = self._get_or_create_window(bucket_key)
-                self._prune_window(timestamps, cap, rate)
+        try:
+            lock = self._get_or_create_lock(bucket_key)
+            async with lock:
+                if bucket_key in self._window_configs:
+                    timestamps, cap, rate = self._get_or_create_window(bucket_key)
+                    self._prune_window(timestamps, cap, rate)
 
-                if len(timestamps) >= cap:
-                    return False
+                    if len(timestamps) >= cap:
+                        return False
 
-                timestamps.append(_time.monotonic())
-                self._redis_set_window(bucket_key, timestamps, cap, rate)
-                return True
+                    timestamps.append(_time.monotonic())
+                    self._redis_set_window(bucket_key, timestamps, cap, rate)
+                    return True
 
-            bucket = self._get_or_create_bucket(bucket_key)
-            self._refill(bucket)
+                bucket = self._get_or_create_bucket(bucket_key)
+                self._refill(bucket)
 
-            if bucket.tokens >= cost:
-                bucket.tokens -= cost
+                if bucket.tokens >= cost:
+                    bucket.tokens -= cost
+                    self._redis_set(bucket_key, bucket)
+                    return True
+
                 self._redis_set(bucket_key, bucket)
-                return True
-
-            self._redis_set(bucket_key, bucket)
-            return False
+                return False
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "TokenBucketAdapter.is_allowed", "bucket_key": bucket_key})
+            raise
 
     async def get_remaining(self, bucket_key: str) -> int:
         """Get remaining tokens/slots for a bucket (read-only).

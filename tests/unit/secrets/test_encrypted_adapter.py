@@ -12,6 +12,7 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
+import json
 import os
 import tempfile
 
@@ -176,3 +177,45 @@ class TestEncryptedSecretAdapterErrors:
         )
         with pytest.raises(PermanentError):
             await adapter.get_secret("db_password")
+
+
+class TestEncryptedSecretAdapterFilePermissions:
+    """Verify secrets file is created with secure 0o600 permissions."""
+
+    def test_write_file_sets_0600_permissions(
+        self, fernet_key: bytes,
+    ) -> None:
+        """_write_file() calls os.chmod with 0o600 after writing."""
+        import stat
+        from unittest.mock import patch
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+            secret_path = tmp.name
+
+        try:
+            config = SecretConfig(
+                cache_ttl_seconds=60,
+                fernet_key=fernet_key.decode(),
+            )
+            adapter = EncryptedSecretAdapter(
+                config=config,
+                secret_storage_path=secret_path,
+            )
+
+            fernet = Fernet(fernet_key)
+            test_data = {"test_key": fernet.encrypt(b"test-value").decode()}
+
+            with patch("os.chmod") as mock_chmod:
+                adapter._write_file(test_data)
+                mock_chmod.assert_called_once_with(secret_path, 0o600)
+
+            # On Unix-like systems, also verify the actual permissions
+            if hasattr(os, "chmod") and os.name != "nt":
+                file_stat = os.stat(secret_path)
+                actual_perms = stat.S_IMODE(file_stat.st_mode)
+                assert actual_perms == 0o600, (
+                    f"Expected 0o600, got {oct(actual_perms)}"
+                )
+        finally:
+            if os.path.exists(secret_path):
+                os.unlink(secret_path)

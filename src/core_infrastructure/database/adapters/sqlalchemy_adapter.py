@@ -238,7 +238,9 @@ class SQLAlchemyAdapter:
         token = _active_session.set(session)
         try:
             yield scope
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "SQLAlchemyAdapter.transaction"})
             await session.rollback()
             raise
         finally:

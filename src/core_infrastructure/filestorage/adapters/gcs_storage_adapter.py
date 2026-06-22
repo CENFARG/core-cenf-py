@@ -14,9 +14,9 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-import contextlib
 from typing import Any
 
+from aiohttp import ClientResponseError
 from gcloud.aio.storage import Storage
 
 from core_infrastructure.common.errors import PermanentError, TransientError
@@ -66,6 +66,66 @@ class GcsStorageAdapter:
         self._client = Storage()
 
     # ------------------------------------------------------------------
+    # Internal: error classification
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _classify_gcs_error(exc: Exception) -> type[PermanentError] | type[TransientError]:
+        """Classify a GCS exception as permanent or transient.
+
+        Inspects aiohttp ClientResponseError status codes. Defaults to
+        transient for unknown exceptions (network timeouts, etc.).
+
+        Args:
+            exc: The exception raised by the GCS client.
+
+        Returns:
+            PermanentError or TransientError class.
+        """
+        if isinstance(exc, ClientResponseError):
+            if exc.status == 404:
+                return PermanentError
+            # 429 (rate limit) and 5xx are transient/retryable
+            if exc.status == 429 or 500 <= exc.status < 600:
+                return TransientError
+        # Default: transient (network errors, timeouts, etc.)
+        return TransientError
+
+    def _raise_classified(
+        self,
+        exc: Exception,
+        *,
+        operation: str,
+        bucket: str,
+        key: str,
+    ) -> None:
+        """Classify, report, and raise a structured GCS error.
+
+        Args:
+            exc: The original exception from the GCS client.
+            operation: Human-readable operation name (e.g. "upload").
+            bucket: The GCS bucket name.
+            key: The object key.
+
+        Raises:
+            PermanentError: If the error is classified as permanent.
+            TransientError: If the error is classified as transient.
+        """
+        # Safely extract error message — some aiohttp exceptions crash on str()
+        try:
+            exc_str = str(exc)
+        except Exception:
+            exc_str = repr(exc)
+
+        error_cls = self._classify_gcs_error(exc)
+        error = error_cls(
+            f"GCS {operation} failed: {bucket}/{key}",
+            details={"bucket": bucket, "key": key, "error": exc_str},
+        )
+        self._error_handler.report(error, context={"bucket": bucket, "key": key})
+        raise error from exc
+
+    # ------------------------------------------------------------------
     # Public API — FileStorageManager Protocol
     # ------------------------------------------------------------------
 
@@ -88,15 +148,18 @@ class GcsStorageAdapter:
             UploadResult: Metadata about the uploaded object.
 
         Raises:
-            TransientError: If the upload fails due to network or GCS issues.
+            TransientError: If the upload fails due to a transient issue.
+            PermanentError: If the upload fails due to a permanent issue.
         """
         try:
             result = await self._client.upload(bucket, key, data)
         except Exception as exc:
-            raise TransientError(
-                f"GCS upload failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="upload",
+                bucket=bucket,
+                key=key,
+            )
 
         return UploadResult(
             key=key,
@@ -115,15 +178,18 @@ class GcsStorageAdapter:
             bytes: The raw object data.
 
         Raises:
-            TransientError: If the download fails.
+            TransientError: If the download fails due to a transient issue.
+            PermanentError: If the download fails due to a permanent issue.
         """
         try:
             return await self._client.download(bucket, key)  # type: ignore[no-any-return]
         except Exception as exc:
-            raise TransientError(
-                f"GCS download failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="download",
+                bucket=bucket,
+                key=key,
+            )
 
     async def delete(self, bucket: str, key: str) -> None:
         """Delete an object from GCS.
@@ -134,8 +200,11 @@ class GcsStorageAdapter:
             bucket: The GCS bucket name.
             key: The object key.
         """
-        with contextlib.suppress(Exception):
+        try:
             await self._client.delete(bucket, key)
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "GcsStorageAdapter.delete", "bucket": bucket, "key": key})
 
     async def exists(self, bucket: str, key: str) -> bool:
         """Check if an object exists in GCS.
@@ -151,7 +220,9 @@ class GcsStorageAdapter:
             objects = await self._client.list_objects(bucket, params={"prefix": key})
             items: list[dict[str, Any]] = objects.get("items", [])
             return any(obj.get("name") == key for obj in items)
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "GcsStorageAdapter.exists", "bucket": bucket, "key": key})
             return False
 
     async def generate_presigned_url(
@@ -178,10 +249,12 @@ class GcsStorageAdapter:
                 bucket, key, expiration=expiry
             )
         except Exception as exc:
-            raise PermanentError(
-                f"GCS pre-signed URL generation failed: {bucket}/{key}",
-                details={"bucket": bucket, "key": key, "error": str(exc)},
-            ) from exc
+            self._raise_classified(
+                exc,
+                operation="pre-signed URL generation",
+                bucket=bucket,
+                key=key,
+            )
 
     async def list_objects(
         self,
@@ -199,7 +272,9 @@ class GcsStorageAdapter:
         """
         try:
             objects = await self._client.list_objects(bucket, params={"prefix": prefix})
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "GcsStorageAdapter.list_objects", "bucket": bucket, "prefix": prefix})
             return []
 
         items: list[dict[str, Any]] = objects.get("items", [])

@@ -242,6 +242,8 @@ class DispatchAlertAdapter:
             self._logger.info("Alert sent via email", title=title, to=to_emails_str)
 
         except Exception as exc:
+            self._error_handler.report(
+                exc, context={"source": "DispatchAlertAdapter._dispatch_email", "title": title})
             self._logger.error(
                 "Failed to send email alert",
                 exc=exc,
@@ -303,6 +305,8 @@ class DispatchAlertAdapter:
                     self._logger.warn("Unknown alert channel", channel=channel_name)
 
             except Exception as exc:
+                self._error_handler.report(
+                    exc, context={"source": "DispatchAlertAdapter.send_alert", "channel": channel_name, "title": title})
                 self._logger.error(
                     f"Failed to send alert to {channel_name}",
                     exc=exc,

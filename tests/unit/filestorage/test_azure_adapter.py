@@ -19,7 +19,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from core_infrastructure.common.errors import TransientError
+from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.filestorage.adapters.azure_storage_adapter import AzureStorageAdapter
@@ -330,3 +330,45 @@ class TestAzureStorageAdapterListObjects:
 
         result = await storage.list_objects("my-bucket", prefix="nonexistent/")
         assert result == []
+
+
+class TestAzureStorageAdapterErrorClassification:
+    """Verify Azure adapter correctly classifies transient vs permanent errors."""
+
+    @pytest.mark.asyncio
+    async def test_resource_not_found_raises_permanent_error(
+        self, storage: AzureStorageAdapter, mock_blob_client: MagicMock,
+    ) -> None:
+        """ResourceNotFoundError raises PermanentError."""
+        from azure.core.exceptions import ResourceNotFoundError
+
+        mock_blob_client.download_blob.side_effect = ResourceNotFoundError("Blob not found")
+
+        with pytest.raises(PermanentError, match="Azure download failed"):
+            await storage.download("bucket", "missing.txt")
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_raises_transient_error(
+        self, storage: AzureStorageAdapter, mock_blob_client: MagicMock,
+    ) -> None:
+        """Generic Exception (network error) still raises TransientError."""
+        mock_blob_client.download_blob.side_effect = Exception("Azure network error")
+
+        with pytest.raises(TransientError, match="Azure download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_error_handler_report_called_on_error(
+        self, storage: AzureStorageAdapter, mock_blob_client: MagicMock,
+        logger: InMemoryLoggerAdapter,
+    ) -> None:
+        """error_handler.report() is called before raising the error."""
+        from azure.core.exceptions import ResourceNotFoundError
+
+        mock_blob_client.download_blob.side_effect = ResourceNotFoundError("Blob not found")
+
+        with pytest.raises(PermanentError):
+            await storage.download("bucket", "missing.txt")
+
+        error_logs = [r for r in logger.get_logs() if r.get("level") == "ERROR"]
+        assert len(error_logs) >= 1, "error_handler.report() should log an ERROR"

@@ -27,6 +27,8 @@ from urllib.parse import urlparse
 
 import aiohttp
 
+from core_infrastructure.common.errors import PermanentError, TransientError
+from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.external_api.models import (
     ApiResponse,
     CircuitState,
@@ -53,12 +55,17 @@ class ResilientHTTPAdapter:
     _CIRCUIT_THRESHOLD: int = 5
     _RECOVERY_TIMEOUT: float = 30.0
 
-    def __init__(self, default_timeout: float = 30.0) -> None:
+    def __init__(
+        self,
+        default_timeout: float = 30.0,
+        error_handler: ErrorHandlingManager | None = None,
+    ) -> None:
         self._default_timeout = default_timeout
         self._session: aiohttp.ClientSession | None = None
         self._circuits: dict[str, CircuitState] = {}
         self._failure_counts: dict[str, int] = {}
         self._last_failure_time: dict[str, float] = {}
+        self._error_handler = error_handler
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -260,12 +267,18 @@ class ResilientHTTPAdapter:
                     elapsed_ms=elapsed,
                 )
 
-        except TimeoutError:
+        except TimeoutError as exc:
             elapsed = (_time.monotonic() - start) * 1000.0
+            if self._error_handler is not None:
+                self._error_handler.report(
+                    exc, context={"source": "ResilientHTTPAdapter._execute_request", "url": url})
             return ApiResponse(status_code=0, body={"error": "timeout"}, elapsed_ms=elapsed)
 
         except Exception as exc:
             elapsed = (_time.monotonic() - start) * 1000.0
+            if self._error_handler is not None:
+                self._error_handler.report(
+                    exc, context={"source": "ResilientHTTPAdapter._execute_request", "url": url})
             return ApiResponse(
                 status_code=0,
                 body={"error": str(exc)},

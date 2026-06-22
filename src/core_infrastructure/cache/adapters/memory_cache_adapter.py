@@ -70,6 +70,11 @@ class MemoryCacheAdapter:
         self._hits: int = 0
         self._misses: int = 0
 
+        # Apply error handler decorator to public methods
+        self.get = self._error_handler.handle_errors()(self.get)
+        self.set = self._error_handler.handle_errors()(self.set)
+        self.delete = self._error_handler.handle_errors()(self.delete)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------

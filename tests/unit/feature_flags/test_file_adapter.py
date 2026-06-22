@@ -290,3 +290,107 @@ class TestFileFeatureFlagAdapterHotReload:
         await adapter._reload()
 
         assert adapter.is_enabled("new-feature") is False
+
+
+class TestFileFeatureFlagAdapterErrorHandling:
+    """Verify error_handler.report() is called when errors occur."""
+
+    def test_is_enabled_reports_error_before_swallowing(
+        self, tmp_path: Path,
+    ) -> None:
+        """is_enabled calls error_handler.report() when evaluation fails."""
+        from core_infrastructure.feature_flags.adapters.file_feature_flag_adapter import (
+            FileFeatureFlagAdapter,
+        )
+
+        cfg = InMemoryConfigAdapter(
+            initial_data={"feature_flags": {"file_path": str(tmp_path / "flags.yaml")}}
+        )
+        # Write valid YAML that loads cleanly
+        _write_flags_file(tmp_path / "flags.yaml", {
+            "test-flag": {"enabled": True, "rules": [], "default": False},
+        })
+        logger = InMemoryLoggerAdapter()
+        obs = InMemoryObservabilityAdapter()
+        err = CapturingErrorAdapter(cfg, logger, obs)
+
+        adapter = FileFeatureFlagAdapter(cfg, logger, err)
+
+        # Corrupt the internal _flags to trigger AttributeError in is_enabled
+        adapter._flags["corrupt-flag"] = "not-a-dict"
+
+        result = adapter.is_enabled("corrupt-flag")
+
+        # Should not raise (fail-safe), return default
+        assert result is False
+
+        # error_handler.report() should have been called (logs contain error)
+        logs = logger.get_logs()
+        error_logs = [log for log in logs if "error" in str(log).lower() or "ERROR" in str(log)]
+        assert len(error_logs) >= 1, (
+            f"Expected error_handler.report() to log an error, "
+            f"but no error logs found in {len(logs)} log entries"
+        )
+
+    def test_get_flag_value_reports_error_before_swallowing(
+        self, tmp_path: Path,
+    ) -> None:
+        """get_flag_value calls error_handler.report() when evaluation fails."""
+        from core_infrastructure.feature_flags.adapters.file_feature_flag_adapter import (
+            FileFeatureFlagAdapter,
+        )
+
+        cfg = InMemoryConfigAdapter(
+            initial_data={"feature_flags": {"file_path": str(tmp_path / "flags.yaml")}}
+        )
+        _write_flags_file(tmp_path / "flags.yaml", {
+            "test-flag": {"enabled": True, "rules": [], "default": False},
+        })
+        logger = InMemoryLoggerAdapter()
+        obs = InMemoryObservabilityAdapter()
+        err = CapturingErrorAdapter(cfg, logger, obs)
+
+        adapter = FileFeatureFlagAdapter(cfg, logger, err)
+
+        # Corrupt the internal _flags to trigger an error
+        adapter._flags["corrupt-flag"] = "not-a-dict"
+
+        result = adapter.get_flag_value("corrupt-flag", default="fallback")
+
+        # Should return default (fail-safe)
+        assert result == "fallback"
+
+        # error_handler.report() should have been called
+        logs = logger.get_logs()
+        error_logs = [log for log in logs if "error" in str(log).lower() or "ERROR" in str(log)]
+        assert len(error_logs) >= 1
+
+    def test_reload_sync_reports_error_on_load_failure(
+        self, tmp_path: Path,
+    ) -> None:
+        """_reload_sync calls error_handler.report() when file load fails."""
+        from core_infrastructure.feature_flags.adapters.file_feature_flag_adapter import (
+            FileFeatureFlagAdapter,
+        )
+
+        # Create a directory where the file would be — read_text() will fail
+        flags_dir = tmp_path / "flags.yaml"
+        flags_dir.mkdir()
+
+        cfg = InMemoryConfigAdapter(
+            initial_data={"feature_flags": {"file_path": str(flags_dir)}}
+        )
+        logger = InMemoryLoggerAdapter()
+        obs = InMemoryObservabilityAdapter()
+        err = CapturingErrorAdapter(cfg, logger, obs)
+
+        # Init with directory-as-file — _reload_sync runs, catches IsADirectoryError
+        adapter = FileFeatureFlagAdapter(cfg, logger, err)
+
+        # error_handler.report() should have been called — check ERROR-level logs
+        logs = logger.get_logs()
+        error_logs = [log for log in logs if log.get("level") == "ERROR"]
+        assert len(error_logs) >= 1, (
+            f"Expected error_handler.report() to log at ERROR level, "
+            f"but no ERROR logs found in {len(logs)} log entries"
+        )

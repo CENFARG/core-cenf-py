@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core_infrastructure.common.errors import TransientError
+from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.filestorage.adapters.gcs_storage_adapter import GcsStorageAdapter
@@ -302,3 +302,89 @@ class TestGcsStorageAdapterListObjects:
 
         result = await storage.list_objects("my-bucket", prefix="nonexistent/")
         assert result == []
+
+
+class TestGcsStorageAdapterErrorClassification:
+    """Verify GCS adapter correctly classifies transient vs permanent errors."""
+
+    @pytest.mark.asyncio
+    async def test_http_404_raises_permanent_error(
+        self, storage: GcsStorageAdapter, mock_storage: MagicMock,
+    ) -> None:
+        """aiohttp ClientResponseError with status 404 raises PermanentError."""
+        from aiohttp import ClientResponseError
+
+        mock_storage.download.side_effect = ClientResponseError(
+            request_info=None,  # type: ignore[arg-type]
+            history=(),
+            status=404,
+            message="Not Found",
+        )
+
+        with pytest.raises(PermanentError, match="GCS download failed"):
+            await storage.download("bucket", "missing.txt")
+
+    @pytest.mark.asyncio
+    async def test_http_429_raises_transient_error(
+        self, storage: GcsStorageAdapter, mock_storage: MagicMock,
+    ) -> None:
+        """aiohttp ClientResponseError with status 429 raises TransientError."""
+        from aiohttp import ClientResponseError
+
+        mock_storage.download.side_effect = ClientResponseError(
+            request_info=None,  # type: ignore[arg-type]
+            history=(),
+            status=429,
+            message="Too Many Requests",
+        )
+
+        with pytest.raises(TransientError, match="GCS download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_http_500_raises_transient_error(
+        self, storage: GcsStorageAdapter, mock_storage: MagicMock,
+    ) -> None:
+        """aiohttp ClientResponseError with status 500 raises TransientError."""
+        from aiohttp import ClientResponseError
+
+        mock_storage.download.side_effect = ClientResponseError(
+            request_info=None,  # type: ignore[arg-type]
+            history=(),
+            status=500,
+            message="Internal Server Error",
+        )
+
+        with pytest.raises(TransientError, match="GCS download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_raises_transient_error(
+        self, storage: GcsStorageAdapter, mock_storage: MagicMock,
+    ) -> None:
+        """Generic Exception (connection refused) still raises TransientError."""
+        mock_storage.download.side_effect = Exception("Connection refused")
+
+        with pytest.raises(TransientError, match="GCS download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_error_handler_report_called_on_error(
+        self, storage: GcsStorageAdapter, mock_storage: MagicMock,
+        logger: InMemoryLoggerAdapter,
+    ) -> None:
+        """error_handler.report() is called before raising the error."""
+        from aiohttp import ClientResponseError
+
+        mock_storage.download.side_effect = ClientResponseError(
+            request_info=None,  # type: ignore[arg-type]
+            history=(),
+            status=404,
+            message="Not Found",
+        )
+
+        with pytest.raises(PermanentError):
+            await storage.download("bucket", "missing.txt")
+
+        error_logs = [r for r in logger.get_logs() if r.get("level") == "ERROR"]
+        assert len(error_logs) >= 1, "error_handler.report() should log an ERROR"

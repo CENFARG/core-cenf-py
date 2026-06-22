@@ -25,6 +25,7 @@ from typing import Any
 from cryptography.fernet import Fernet, InvalidToken
 
 from core_infrastructure.common.errors import PermanentError, ValidationError
+from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.secrets.models import SecretConfig
 
 
@@ -65,11 +66,13 @@ class EncryptedSecretAdapter:
         self,
         config: SecretConfig,
         secret_storage_path: str,
+        error_handler: ErrorHandlingManager | None = None,
     ) -> None:
         self._config: SecretConfig = config
         self._storage_path: str = secret_storage_path
         self._cache: dict[str, _CacheEntry] = {}
         self._fernet: Fernet | None = None
+        self._error_handler = error_handler
 
     # ------------------------------------------------------------------
     # Internal: Fernet initialization (lazy)
@@ -146,6 +149,8 @@ class EncryptedSecretAdapter:
     def _write_file(self, data: dict[str, str]) -> None:
         """Write the encrypted secrets back to the JSON file.
 
+        Sets file permissions to 0o600 (owner read/write only) for security.
+
         Args:
             data: Mapping of key → encrypted (base64) value.
 
@@ -157,6 +162,7 @@ class EncryptedSecretAdapter:
             os.makedirs(os.path.dirname(self._storage_path), exist_ok=True)
             with open(self._storage_path, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=2)
+            os.chmod(self._storage_path, 0o600)
         except OSError as exc:
             raise PermanentError(
                 f"Cannot write secret storage file: {self._storage_path}",
@@ -234,28 +240,34 @@ class EncryptedSecretAdapter:
             ValidationError: If the key is empty or not found.
             PermanentError: If the storage file cannot be read/decrypted.
         """
-        if not key:
-            raise ValidationError(
-                "Secret key must not be empty",
-                details={"key": key},
-            )
+        try:
+            if not key:
+                raise ValidationError(
+                    "Secret key must not be empty",
+                    details={"key": key},
+                )
 
-        # Check cache
-        entry = self._cache.get(key)
-        if entry is not None and not entry.is_expired():
-            return entry.value
+            # Check cache
+            entry = self._cache.get(key)
+            if entry is not None and not entry.is_expired():
+                return entry.value
 
-        # Cache miss — read from file
-        encrypted_data = self._read_file()
-        if key not in encrypted_data:
-            raise ValidationError(
-                f"Secret not found: {key}",
-                details={"key": key},
-            )
+            # Cache miss — read from file
+            encrypted_data = self._read_file()
+            if key not in encrypted_data:
+                raise ValidationError(
+                    f"Secret not found: {key}",
+                    details={"key": key},
+                )
 
-        decrypted = self._decrypt(encrypted_data[key])
-        self._cache[key] = _CacheEntry(decrypted, self._config.cache_ttl_seconds)
-        return decrypted
+            decrypted = self._decrypt(encrypted_data[key])
+            self._cache[key] = _CacheEntry(decrypted, self._config.cache_ttl_seconds)
+            return decrypted
+        except Exception as exc:
+            if self._error_handler is not None:
+                self._error_handler.report(
+                    exc, context={"source": "EncryptedSecretAdapter.get_secret", "key": key})
+            raise
 
     def invalidate_cache(self, key: str | None = None) -> None:
         """Invalidate cached secret entries.
@@ -282,16 +294,22 @@ class EncryptedSecretAdapter:
             ValidationError: If the key is empty.
             PermanentError: If the read/write/encrypt operation fails.
         """
-        if not key:
-            raise ValidationError(
-                "Secret key must not be empty",
-                details={"key": key},
-            )
+        try:
+            if not key:
+                raise ValidationError(
+                    "Secret key must not be empty",
+                    details={"key": key},
+                )
 
-        encrypted_data = self._read_file()
-        encrypted_data[key] = self._encrypt(new_value)
-        self._write_file(encrypted_data)
-        self._cache.pop(key, None)
+            encrypted_data = self._read_file()
+            encrypted_data[key] = self._encrypt(new_value)
+            self._write_file(encrypted_data)
+            self._cache.pop(key, None)
+        except Exception as exc:
+            if self._error_handler is not None:
+                self._error_handler.report(
+                    exc, context={"source": "EncryptedSecretAdapter.rotate_secret", "key": key})
+            raise
 
     def get_json_schema(self) -> dict[str, Any]:
         """Return the JSON Schema describing SecretConfig.

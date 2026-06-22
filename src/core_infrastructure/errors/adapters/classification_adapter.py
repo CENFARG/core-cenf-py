@@ -22,7 +22,7 @@ Version: 0.1.0
 from __future__ import annotations
 
 import functools
-from typing import Any, TypeVar
+from typing import Any
 
 from core_infrastructure.common.context import get_correlation_id, get_tenant_id
 from core_infrastructure.common.errors import (
@@ -37,8 +37,6 @@ from core_infrastructure.config.ports import ConfigManager
 from core_infrastructure.errors.models import ErrorClassification, ErrorContext, ErrorReport
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.observability.ports import ObservabilityManager
-
-F = TypeVar("F", bound=type)
 
 
 # Internal mapping from CenfError subclasses to ErrorClassification

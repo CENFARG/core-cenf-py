@@ -19,7 +19,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from core_infrastructure.common.errors import TransientError
+from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
 from core_infrastructure.errors.adapters.capturing_error_adapter import CapturingErrorAdapter
 from core_infrastructure.filestorage.adapters.s3_storage_adapter import S3StorageAdapter
@@ -296,3 +296,96 @@ class TestS3StorageAdapterListObjects:
 
         result = await storage.list_objects("my-bucket", prefix="nonexistent/")
         assert result == []
+
+
+class TestS3StorageAdapterErrorClassification:
+    """Verify S3 adapter correctly classifies transient vs permanent errors."""
+
+    @pytest.mark.asyncio
+    async def test_client_error_404_raises_permanent_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+    ) -> None:
+        """ClientError with code 404 raises PermanentError."""
+        from botocore.exceptions import ClientError
+
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "404", "Message": "Not Found"}},
+            "GetObject",
+        )
+
+        with pytest.raises(PermanentError, match="S3 download failed"):
+            await storage.download("bucket", "missing.txt")
+
+    @pytest.mark.asyncio
+    async def test_client_error_nosuchkey_raises_permanent_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+    ) -> None:
+        """ClientError with code NoSuchKey raises PermanentError."""
+        from botocore.exceptions import ClientError
+
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "NoSuchKey", "Message": "The specified key does not exist"}},
+            "GetObject",
+        )
+
+        with pytest.raises(PermanentError, match="S3 download failed"):
+            await storage.download("bucket", "nosuchkey.txt")
+
+    @pytest.mark.asyncio
+    async def test_client_error_500_raises_transient_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+    ) -> None:
+        """ClientError with code 500 raises TransientError."""
+        from botocore.exceptions import ClientError
+
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "500", "Message": "Internal Server Error"}},
+            "GetObject",
+        )
+
+        with pytest.raises(TransientError, match="S3 download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_client_error_503_raises_transient_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+    ) -> None:
+        """ClientError with code 503 raises TransientError."""
+        from botocore.exceptions import ClientError
+
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "503", "Message": "Service Unavailable"}},
+            "GetObject",
+        )
+
+        with pytest.raises(TransientError, match="S3 download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_raises_transient_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+    ) -> None:
+        """Generic Exception (network timeout) still raises TransientError."""
+        mock_client.get_object.side_effect = Exception("Network timeout")
+
+        with pytest.raises(TransientError, match="S3 download failed"):
+            await storage.download("bucket", "key.txt")
+
+    @pytest.mark.asyncio
+    async def test_error_handler_report_called_on_error(
+        self, storage: S3StorageAdapter, mock_client: MagicMock,
+        logger: InMemoryLoggerAdapter,
+    ) -> None:
+        """error_handler.report() is called before raising the error."""
+        from botocore.exceptions import ClientError
+
+        mock_client.get_object.side_effect = ClientError(
+            {"Error": {"Code": "404", "Message": "Not Found"}},
+            "GetObject",
+        )
+
+        with pytest.raises(PermanentError):
+            await storage.download("bucket", "missing.txt")
+
+        error_logs = [r for r in logger.get_logs() if r.get("level") == "ERROR"]
+        assert len(error_logs) >= 1, "error_handler.report() should log an ERROR"

@@ -29,6 +29,7 @@ from core_infrastructure.auth.models import AuthConfig, TokenClaims
 from core_infrastructure.common.context import set_principal_id, set_tenant_id
 from core_infrastructure.common.errors import AuthError
 from core_infrastructure.config.ports import ConfigManager
+from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.observability.ports import ObservabilityManager
 from core_infrastructure.secrets.ports import SecretManager
@@ -71,12 +72,14 @@ class JwtAuthAdapter:
         logger: LoggerManager,
         observability: ObservabilityManager,
         auth_config: AuthConfig,
+        error_handler: ErrorHandlingManager | None = None,
     ) -> None:
         self._config = config
         self._secret_manager = secret_manager
         self._logger = logger
         self._observability = observability
         self._auth_config = auth_config
+        self._error_handler = error_handler
 
     # ------------------------------------------------------------------
     # Public API — AuthManager Protocol
@@ -164,6 +167,10 @@ class JwtAuthAdapter:
                 value=1.0,
                 attributes={"reason": reason},
             )
+            if self._error_handler is not None:
+                self._error_handler.report(
+                    exc,
+                    context={"source": "JwtAuthAdapter.validate_token", "reason": reason})
             raise AuthError(
                 f"Token validation failed: {error_msg}",
                 details={"reason": reason},

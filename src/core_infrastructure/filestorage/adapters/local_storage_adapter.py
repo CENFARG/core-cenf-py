@@ -95,6 +95,8 @@ class LocalStorageAdapter:
         try:
             await aio_os.makedirs(bucket_dir, exist_ok=True)
         except OSError as exc:
+            self._error_handler.report(
+                exc, context={"source": "LocalStorageAdapter._ensure_bucket_dir", "bucket": bucket})
             raise PermanentError(
                 f"Failed to create bucket directory: {bucket_dir}",
                 details={"bucket": bucket, "error": str(exc)},
@@ -139,6 +141,8 @@ class LocalStorageAdapter:
             async with aiofiles.open(file_path, "wb") as f:
                 await f.write(data)
         except OSError as exc:
+            self._error_handler.report(
+                exc, context={"source": "LocalStorageAdapter.upload", "bucket": bucket, "key": key})
             raise PermanentError(
                 f"Failed to write object: {file_path}",
                 details={"bucket": bucket, "key": key, "error": str(exc)},
@@ -176,6 +180,8 @@ class LocalStorageAdapter:
             async with aiofiles.open(file_path, "rb") as f:
                 return await f.read()
         except OSError as exc:
+            self._error_handler.report(
+                exc, context={"source": "LocalStorageAdapter.download", "bucket": bucket, "key": key})
             raise PermanentError(
                 f"Failed to read object: {file_path}",
                 details={"bucket": bucket, "key": key, "error": str(exc)},
@@ -194,7 +200,9 @@ class LocalStorageAdapter:
         try:
             if file_path.is_file():
                 file_path.unlink()
-        except OSError:
+        except OSError as exc:
+            self._error_handler.report(
+                exc, context={"source": "LocalStorageAdapter.delete", "bucket": bucket, "key": key})
             pass  # Silently ignore filesystem errors during delete
 
     async def exists(self, bucket: str, key: str) -> bool:
@@ -273,7 +281,9 @@ class LocalStorageAdapter:
                     content_type="application/octet-stream",
                 )
                 results.append(ref)
-        except OSError:
+        except OSError as exc:
+            self._error_handler.report(
+                exc, context={"source": "LocalStorageAdapter.list_objects", "bucket": bucket, "prefix": prefix})
             return []
 
         return results

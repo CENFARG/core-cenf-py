@@ -82,7 +82,11 @@ class FileFeatureFlagAdapter:
                 self._flags = yaml.safe_load(raw) or {}
             else:
                 self._flags = {}
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc,
+                context={"source": "FileFeatureFlagAdapter._reload_sync", "file_path": str(self._file_path)},
+            )
             self._logger.warn(
                 "FileFeatureFlagAdapter: failed to load flags file, keeping previous",
                 file_path=str(self._file_path),
@@ -166,7 +170,11 @@ class FileFeatureFlagAdapter:
             if not flag_def.get("enabled", False):
                 return False
             return self._evaluate_rules(flag_def, context)
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc,
+                context={"source": "FileFeatureFlagAdapter.is_enabled", "flag_key": flag_key},
+            )
             self._logger.warn(
                 "FileFeatureFlagAdapter: evaluation failed, returning default",
                 flag_key=flag_key,
@@ -198,7 +206,11 @@ class FileFeatureFlagAdapter:
             if not self._evaluate_rules(flag_def, context):
                 return default
             return flag_def.get("value", default)
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc,
+                context={"source": "FileFeatureFlagAdapter.get_flag_value", "flag_key": flag_key},
+            )
             return default
 
     def get_all_flags(
@@ -220,7 +232,11 @@ class FileFeatureFlagAdapter:
             for key in self._flags:
                 result[key] = self.is_enabled(key, context)
             return result
-        except Exception:
+        except Exception as exc:
+            self._error_handler.report(
+                exc,
+                context={"source": "FileFeatureFlagAdapter.get_all_flags"},
+            )
             return {}
 
     async def refresh(self) -> None:

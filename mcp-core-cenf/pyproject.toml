@@ -12,7 +12,7 @@ dependencies = [
 mcp-core-cenf = "mcp_core_cenf.server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["mcp_core_cenf"]
+packages = ["src/mcp_core_cenf"]
 
 [build-system]
 requires = ["hatchling"]

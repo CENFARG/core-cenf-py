@@ -18,11 +18,14 @@ Version: 0.1.0
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import math
 import random
 import time as _time
 from typing import Any
 from urllib.parse import urlparse
+
+import aiohttp
 
 from core_infrastructure.external_api.models import (
     ApiResponse,
@@ -52,9 +55,36 @@ class ResilientHTTPAdapter:
 
     def __init__(self, default_timeout: float = 30.0) -> None:
         self._default_timeout = default_timeout
+        self._session: aiohttp.ClientSession | None = None
         self._circuits: dict[str, CircuitState] = {}
         self._failure_counts: dict[str, int] = {}
         self._last_failure_time: dict[str, float] = {}
+
+    # ------------------------------------------------------------------
+    # Session lifecycle
+    # ------------------------------------------------------------------
+
+    async def start(self) -> None:
+        """Create the aiohttp ClientSession.
+
+        Must be called before any requests are made. Creates a session
+        with connection pooling, timeout defaults, and JSON serialization.
+        """
+        if self._session is None:
+            timeout = aiohttp.ClientTimeout(total=self._default_timeout)
+            self._session = aiohttp.ClientSession(
+                timeout=timeout,
+                json_serialize=_json.dumps,
+            )
+
+    async def stop(self) -> None:
+        """Close the aiohttp ClientSession and release resources.
+
+        Idempotent — safe to call multiple times or when session is None.
+        """
+        if self._session is not None:
+            await self._session.close()
+            self._session = None
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -132,6 +162,44 @@ class ResilientHTTPAdapter:
                 self._circuits[host] = CircuitState.OPEN
                 self._last_failure_time[host] = _time.monotonic()
 
+    def _build_headers(
+        self, headers: dict[str, str] | None, body: dict[str, Any] | None
+    ) -> dict[str, str]:
+        """Build request headers with auto Content-Type for JSON bodies.
+
+        Args:
+            headers: User-supplied headers.
+            body: Optional request body.
+
+        Returns:
+            Request headers dict.
+        """
+        req_headers: dict[str, str] = {}
+        if headers:
+            req_headers.update(headers)
+        if body is not None and "Content-Type" not in req_headers:
+            req_headers["Content-Type"] = "application/json"
+        return req_headers
+
+    @staticmethod
+    def _headers_to_dict(headers: Any) -> dict[str, str]:
+        """Convert aiohttp response headers to a plain dict.
+
+        Handles multi-valued headers (e.g., multiple Set-Cookie) by joining
+        values with ', ' for the standard dict representation.
+
+        Args:
+            headers: aiohttp CIMultiDict or similar mapping.
+
+        Returns:
+            Plain dict with header name → value(s).
+        """
+        result: dict[str, str] = {}
+        for key in headers:
+            values = headers.getall(key)
+            result[key] = ", ".join(values) if len(values) > 1 else values[0]
+        return result
+
     async def _execute_request(
         self,
         method: str,
@@ -140,10 +208,7 @@ class ResilientHTTPAdapter:
         body: dict[str, Any] | None,
         timeout: float,
     ) -> ApiResponse:
-        """Execute a single HTTP request without retry logic.
-
-        Uses asyncio to simulate HTTP communication. In production,
-        this would use aiohttp.ClientSession.request().
+        """Execute a single HTTP request via aiohttp without retry logic.
 
         Args:
             method: HTTP method.
@@ -155,49 +220,45 @@ class ResilientHTTPAdapter:
         Returns:
             ApiResponse: The HTTP response.
         """
-        import json as _json
-
         effective_timeout = timeout or self._default_timeout
         start = _time.monotonic()
 
         try:
-            # In production: use aiohttp.ClientSession().request()
-            # For now, simulate with a basic approach using urllib
-            import urllib.request as _urllib
+            req_headers = self._build_headers(headers, body)
 
-            data = None
+            data: bytes | None = None
             if body is not None:
                 data = _json.dumps(body).encode("utf-8")
 
-            req_headers: dict[str, str] = {}
-            if headers:
-                req_headers.update(headers)
-            if body is not None and "Content-Type" not in req_headers:
-                req_headers["Content-Type"] = "application/json"
+            client_timeout = aiohttp.ClientTimeout(total=effective_timeout)
 
-            req = _urllib.Request(url, data=data, headers=req_headers, method=method.upper())
+            if self._session is None:
+                raise RuntimeError(
+                    "Session not started. Call adapter.start() before making requests."
+                )
 
-            loop = asyncio.get_running_loop()
-            response = await asyncio.wait_for(
-                loop.run_in_executor(None, _urllib.urlopen, req),
-                timeout=effective_timeout,
-            )
+            async with self._session.request(
+                method.upper(),
+                url,
+                headers=req_headers,
+                data=data,
+                timeout=client_timeout,
+            ) as resp:
+                response_body_raw = await resp.read()
+                elapsed = (_time.monotonic() - start) * 1000.0
+                resp_headers = self._headers_to_dict(resp.headers)
 
-            elapsed = (_time.monotonic() - start) * 1000.0
-            resp_body_raw = response.read()
-            resp_headers = dict(response.headers.items())
+                try:
+                    resp_body = _json.loads(response_body_raw)
+                except (_json.JSONDecodeError, TypeError, UnicodeDecodeError):
+                    resp_body = {"_raw": response_body_raw.decode("utf-8", errors="replace")}
 
-            try:
-                resp_body = _json.loads(resp_body_raw)
-            except (_json.JSONDecodeError, TypeError):
-                resp_body = {"_raw": resp_body_raw.decode("utf-8", errors="replace")}
-
-            return ApiResponse(
-                status_code=response.getcode(),
-                headers=resp_headers,
-                body=resp_body,
-                elapsed_ms=elapsed,
-            )
+                return ApiResponse(
+                    status_code=resp.status,
+                    headers=resp_headers,
+                    body=resp_body,
+                    elapsed_ms=elapsed,
+                )
 
         except TimeoutError:
             elapsed = (_time.monotonic() - start) * 1000.0

@@ -17,38 +17,32 @@ Version: 0.1.0
 from __future__ import annotations
 
 import asyncio
-import json
 import threading
 from collections.abc import Callable
 from typing import Any
 
+from core_infrastructure.cache.adapters.redis_cache_adapter_helpers import (
+    clear_redis_namespace,
+    connect_redis,
+    deserialize_value,
+    make_key,
+    run_redis_sync,
+    serialize_value,
+)
 from core_infrastructure.cache.ports import CacheManager
-from core_infrastructure.common.errors import TransientError
 from core_infrastructure.config.ports import ConfigManager
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.secrets.ports import SecretManager
-
-# ---------------------------------------------------------------------------
-# Redis exception type name — avoids hard import at module level (optional dep)
-# ---------------------------------------------------------------------------
-_REDIS_CONNECTION_ERROR = "ConnectionError"
 
 
 class RedisCacheAdapter(CacheManager):
     """Redis-backed CacheManager with async connection pool and key prefix scoping.
 
     All cache keys are prefixed with ``cenf:cache:{namespace}:`` for
-    multi-tenant isolation. Falls back to in-memory dict storage if
-    Redis is unreachable during initialization.
-
-    Args:
-        config: ConfigManager for ``cache.redis.url``, ``cache.redis.ttl``,
-            ``cache.redis.namespace``.
-        secrets: SecretManager for Redis credentials (reserved for future use).
-        logger: LoggerManager for structured log emission.
+    multi-tenant isolation. Falls back to in-memory dict if Redis is
+    unreachable during initialization.
 
     Usage::
-
         adapter = RedisCacheAdapter(config, secrets, logger)
         adapter.set("user:1", {"name": "Alice"}, ttl=60)
         value = adapter.get("user:1")  # {"name": "Alice"}
@@ -56,6 +50,11 @@ class RedisCacheAdapter(CacheManager):
 
     _DEFAULT_TTL: int = 300
     _DEFAULT_NAMESPACE: str = "default"
+
+    @staticmethod
+    def _make_key(key: str, *, prefix: str = "") -> str:
+        """Build a prefixed cache key (delegates to helpers.make_key)."""
+        return make_key(key, prefix=prefix)
 
     def __init__(
         self,
@@ -77,227 +76,71 @@ class RedisCacheAdapter(CacheManager):
         self._locks: dict[str, threading.Lock] = {}
 
         try:
-            self._redis = asyncio.run(self._connect(redis_url))
+            self._redis = asyncio.run(connect_redis(redis_url))
         except Exception:
             self._logger.warn(
                 "RedisCacheAdapter: Redis unavailable, falling back to in-memory mode",
                 redis_url=self._logger.mask(redis_url, visible_chars=0),
             )
 
-    @staticmethod
-    async def _connect(url: str) -> Any:
-        """Create async Redis client and verify connectivity with PING.
-
-        Args:
-            url: Redis connection URL.
-
-        Returns:
-            A connected ``redis.asyncio.Redis`` instance.
-
-        Raises:
-            redis.exceptions.ConnectionError: If Redis is unreachable.
-        """
-        import redis.asyncio as aioredis
-
-        pool: aioredis.ConnectionPool = aioredis.ConnectionPool.from_url(url)  # type: ignore[type-arg]
-        client = aioredis.Redis(connection_pool=pool)
-        await client.ping()
-        return client
-
-    @staticmethod
-    def _make_key(key: str, *, prefix: str = "") -> str:
-        """Build a prefixed cache key.
-
-        Args:
-            key: The raw cache key.
-            prefix: The key prefix to prepend (e.g., ``"cenf:cache:app:"``).
-
-        Returns:
-            str: The fully prefixed key.
-        """
-        return f"{prefix}{key}"
-
-    def _run_redis(self, factory: Callable[[], Any]) -> Any:
-        """Run a Redis coroutine factory, safe for both sync and async contexts.
-
-        The factory is a zero-argument callable that produces a coroutine
-        (e.g., ``lambda: self._redis.get(key)``). This ensures exceptions
-        from mock-based tests are caught inside the try block.
-
-        When called from sync code (no running event loop), uses ``asyncio.run()``.
-        When called from inside an existing event loop (e.g., async web framework),
-        runs the coroutine in a separate thread to avoid ``RuntimeError``.
-
-        Args:
-            factory: A callable that returns a coroutine.
-
-        Returns:
-            The coroutine's result.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        if self._redis is None:
-            raise TransientError("Redis not available — adapter is in fallback mode")
-
-        async def _runner() -> Any:
-            return await factory()
-
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop — safe to use asyncio.run()
-            try:
-                return asyncio.run(_runner())
-            except Exception as exc:
-                if type(exc).__name__ == _REDIS_CONNECTION_ERROR:
-                    self._logger.error("Redis operation failed", exc=exc)
-                    raise TransientError(
-                        f"Redis operation failed: {exc}",
-                        details={"key_prefix": self._key_prefix},
-                    ) from exc
-                raise
-        else:
-            # Inside an event loop — run in a separate thread
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, _runner())
-                try:
-                    return future.result()
-                except Exception as exc:
-                    if type(exc).__name__ == _REDIS_CONNECTION_ERROR:
-                        self._logger.error("Redis operation failed", exc=exc)
-                        raise TransientError(
-                            f"Redis operation failed: {exc}",
-                            details={"key_prefix": self._key_prefix},
-                        ) from exc
-                    raise
-
     # ------------------------------------------------------------------
     # Public API — CacheManager Protocol
     # ------------------------------------------------------------------
 
     def get(self, key: str) -> Any:
-        """Retrieve a value from Redis.
-
-        If Redis is in fallback mode (init failure), reads from in-memory dict.
-        If Redis is available but unreachable at runtime, raises ``TransientError``.
-
-        Args:
-            key: The cache key to look up.
-
-        Returns:
-            Any: The cached value, or ``None`` if missing.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        prefixed = self._make_key(key, prefix=self._key_prefix)
-
+        """Retrieve a value from Redis or in-memory fallback."""
+        prefixed = make_key(key, prefix=self._key_prefix)
         if self._redis is None:
             return self._in_memory.get(key)
-
-        raw = self._run_redis(lambda: self._redis.get(prefixed))
-        if raw is None:
-            return None
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8")
-        return json.loads(raw) if isinstance(raw, str) else raw
+        raw = run_redis_sync(
+            self._redis, lambda: self._redis.get(prefixed),
+            key_prefix=self._key_prefix, logger=self._logger,
+        )
+        return deserialize_value(raw)
 
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
-        """Store a value in Redis with an optional TTL.
-
-        Falls back to in-memory dict only if Redis init failed.
-        Raises ``TransientError`` if Redis is unreachable at runtime.
-
-        Args:
-            key: The cache key.
-            value: The value to cache (any JSON-serializable Python object).
-            ttl: Time-to-live in seconds, or ``None`` for default.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        prefixed = self._make_key(key, prefix=self._key_prefix)
+        """Store a value in Redis with optional TTL."""
+        prefixed = make_key(key, prefix=self._key_prefix)
         resolved_ttl = ttl if ttl is not None else self._ttl
-
-        payload = json.dumps(value, default=str)
-
+        payload = serialize_value(value)
         if self._redis is None:
             self._in_memory[key] = value
             return
-
-        self._run_redis(lambda: self._redis.set(prefixed, payload, ex=resolved_ttl))
+        run_redis_sync(
+            self._redis, lambda: self._redis.set(prefixed, payload, ex=resolved_ttl),
+            key_prefix=self._key_prefix, logger=self._logger,
+        )
 
     def delete(self, key: str) -> None:
-        """Remove an entry from Redis.
-
-        Idempotent — deleting a non-existent key succeeds silently.
-        Falls back to in-memory only if Redis init failed.
-
-        Args:
-            key: The cache key to remove.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        prefixed = self._make_key(key, prefix=self._key_prefix)
-
+        """Remove an entry from Redis. Idempotent."""
+        prefixed = make_key(key, prefix=self._key_prefix)
         self._in_memory.pop(key, None)
         if self._redis is None:
             return
-
-        self._run_redis(lambda: self._redis.delete(prefixed))
+        run_redis_sync(
+            self._redis, lambda: self._redis.delete(prefixed),
+            key_prefix=self._key_prefix, logger=self._logger,
+        )
 
     def exists(self, key: str) -> bool:
-        """Check if a key exists in Redis.
-
-        Falls back to in-memory dict only if Redis init failed.
-
-        Args:
-            key: The cache key to check.
-
-        Returns:
-            bool: ``True`` if the key exists and has not expired.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        prefixed = self._make_key(key, prefix=self._key_prefix)
-
+        """Check if a key exists in Redis."""
+        prefixed = make_key(key, prefix=self._key_prefix)
         if self._redis is None:
             return key in self._in_memory
-
-        result = self._run_redis(lambda: self._redis.exists(prefixed))
+        result = run_redis_sync(
+            self._redis, lambda: self._redis.exists(prefixed),
+            key_prefix=self._key_prefix, logger=self._logger,
+        )
         return bool(result)
 
     def clear(self) -> None:
-        """Remove ALL entries with the adapter's key prefix via SCAN+DELETE.
-
-        Uses SCAN with ``{prefix}*`` pattern to find and DELETE only keys
-        belonging to this adapter's namespace. Other keys in the database
-        are never touched.
-
-        Raises:
-            TransientError: If Redis is unreachable.
-        """
-        self._in_memory.clear()
-        if self._redis is None:
-            return
-
-        async def _clear_async() -> None:
-            pattern = f"{self._key_prefix}*"
-            cursor = 0
-            while True:
-                cursor, keys = await self._redis.scan(
-                    cursor, match=pattern, count=100
-                )
-                if keys:
-                    await self._redis.delete(*keys)
-                if cursor == 0:
-                    break
-
-        self._run_redis(_clear_async)
+        """Remove ALL entries with the adapter's key prefix via SCAN+DELETE (delegates to helpers)."""
+        clear_redis_namespace(
+            self._redis,
+            self._key_prefix,
+            self._in_memory,
+            logger=self._logger,
+        )
 
     def _get_lock(self, key: str) -> threading.Lock:
         """Get or create a mutex for a cache key to prevent stampede.

@@ -273,6 +273,7 @@ class TestRedisCacheAdapterEventLoopSafety:
     ) -> None:
         """Adapter operations work when called from sync code (no running loop)."""
         import asyncio
+
         from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
 
         adapter = RedisCacheAdapter(config, secrets, logger)
@@ -297,6 +298,7 @@ class TestRedisCacheAdapterEventLoopSafety:
     ) -> None:
         """Adapter operations work when called from inside an existing event loop."""
         import asyncio
+
         from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
 
         adapter = RedisCacheAdapter(config, secrets, logger)
@@ -391,3 +393,130 @@ class TestRedisCacheAdapterSerialization:
         adapter.set("none-key", None, ttl=300)
         result = adapter.get("none-key")
         assert result is None
+
+
+class TestRedisCacheAdapterStampedeProtection:
+    """Verify get_or_set() prevents thundering herd (stampede)."""
+
+    def test_get_or_set_concurrent_only_invokes_factory_once(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """Concurrent get_or_set calls for the same key invoke factory only once."""
+        import concurrent.futures
+        import threading
+        import time
+
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+
+        # Simulate a real cache: set() stores in a dict, get() retrieves from it
+        cache_store: dict[str, str] = {}
+        store_lock = threading.Lock()
+
+        async def mock_get(key: str) -> str | None:
+            with store_lock:
+                return cache_store.get(key)
+
+        async def mock_set(key: str, value: str, ex: int | None = None) -> bool:
+            with store_lock:
+                cache_store[key] = value
+            return True
+
+        mock_redis_client.get = AsyncMock(side_effect=mock_get)
+        mock_redis_client.set = AsyncMock(side_effect=mock_set)
+
+        call_count = 0
+        count_lock = threading.Lock()
+
+        def slow_factory():
+            nonlocal call_count
+            with count_lock:
+                call_count += 1
+            # Simulate slow computation so threads overlap
+            time.sleep(0.2)
+            return "computed-value"
+
+        def call_get_or_set():
+            return adapter.get_or_set("hot-key", slow_factory, ttl=300)
+
+        # Fire 4 concurrent calls
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [executor.submit(call_get_or_set) for _ in range(4)]
+            results = [f.result(timeout=15) for f in futures]
+
+        # All results must be the same
+        assert all(r == "computed-value" for r in results)
+        # Factory must have been called exactly ONCE (not 4 times)
+        assert call_count == 1, (
+            f"Expected factory to be called once, but was called {call_count} times. "
+            "Stampede protection missing."
+        )
+
+    def test_get_or_set_different_keys_not_blocked(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """Different keys do NOT block each other under stampede protection."""
+        import concurrent.futures
+        import threading
+        import time
+
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+
+        # Simulate a real cache
+        cache_store: dict[str, str] = {}
+        store_lock = threading.Lock()
+
+        async def mock_get(key: str) -> str | None:
+            with store_lock:
+                return cache_store.get(key)
+
+        async def mock_set(key: str, value: str, ex: int | None = None) -> bool:
+            with store_lock:
+                cache_store[key] = value
+            return True
+
+        mock_redis_client.get = AsyncMock(side_effect=mock_get)
+        mock_redis_client.set = AsyncMock(side_effect=mock_set)
+
+        call_counts: dict[str, int] = {}
+        count_lock = threading.Lock()
+
+        def factory_for(key: str):
+            def _factory():
+                with count_lock:
+                    call_counts[key] = call_counts.get(key, 0) + 1
+                time.sleep(0.2)  # Overlap
+                return f"value-{key}"
+            return _factory
+
+        def call_get_or_set(key: str):
+            return adapter.get_or_set(key, factory_for(key), ttl=300)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            futures = [
+                executor.submit(call_get_or_set, "key-a"),
+                executor.submit(call_get_or_set, "key-a"),
+                executor.submit(call_get_or_set, "key-b"),
+                executor.submit(call_get_or_set, "key-b"),
+            ]
+            results = [f.result(timeout=15) for f in futures]
+
+        # Both "key-a" calls return the same value
+        assert results[0] == "value-key-a"
+        assert results[1] == "value-key-a"
+        assert results[2] == "value-key-b"
+        assert results[3] == "value-key-b"
+        # Each key's factory called exactly once
+        assert call_counts.get("key-a", 0) == 1, (
+            f"Factory for key-a called {call_counts.get('key-a', 0)} times, expected 1"
+        )
+        assert call_counts.get("key-b", 0) == 1, (
+            f"Factory for key-b called {call_counts.get('key-b', 0)} times, expected 1"
+        )

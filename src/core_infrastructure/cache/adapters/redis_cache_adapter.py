@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -73,6 +74,7 @@ class RedisCacheAdapter(CacheManager):
 
         self._redis: Any = None
         self._in_memory: dict[str, Any] = {}
+        self._locks: dict[str, threading.Lock] = {}
 
         try:
             self._redis = asyncio.run(self._connect(redis_url))
@@ -297,8 +299,28 @@ class RedisCacheAdapter(CacheManager):
 
         self._run_redis(_clear_async)
 
+    def _get_lock(self, key: str) -> threading.Lock:
+        """Get or create a mutex for a cache key to prevent stampede.
+
+        Locks are created lazily and cached in ``self._locks``. Each key
+        gets its own lock so different keys do not block each other.
+
+        Args:
+            key: The cache key (un-prefixed).
+
+        Returns:
+            threading.Lock: A mutex for this specific cache key.
+        """
+        if key not in self._locks:
+            self._locks[key] = threading.Lock()
+        return self._locks[key]
+
     def get_or_set(self, key: str, factory: Callable[[], Any], ttl: int | None = None) -> Any:
         """Get a value from cache or compute and cache it.
+
+        Protected by a per-key mutex to prevent thundering herd: only one
+        caller computes the value while others wait and retrieve the cached
+        result.
 
         Args:
             key: The cache key.
@@ -308,9 +330,11 @@ class RedisCacheAdapter(CacheManager):
         Returns:
             Any: The cached or freshly computed value.
         """
-        value = self.get(key)
-        if value is not None:
+        lock = self._get_lock(key)
+        with lock:
+            value = self.get(key)
+            if value is not None:
+                return value
+            value = factory()
+            self.set(key, value, ttl=ttl)
             return value
-        value = factory()
-        self.set(key, value, ttl=ttl)
-        return value

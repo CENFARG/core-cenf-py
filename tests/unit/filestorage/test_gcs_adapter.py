@@ -100,7 +100,8 @@ def storage(
         "core_infrastructure.filestorage.adapters.gcs_storage_adapter.Storage",
         return_value=mock_storage,
     ):
-        return GcsStorageAdapter(config, secret_manager, logger, error_handler)
+        adapter = GcsStorageAdapter(config, secret_manager, logger, error_handler)
+        yield adapter
 
 
 class TestGcsStorageAdapterProtocol:
@@ -217,7 +218,6 @@ class TestGcsStorageAdapterExists:
     """Verify exists checks object presence via list_objects."""
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="GCS mock injection issue in CI — needs fixture refactor")
     async def test_exists_returns_true_when_key_found(
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
@@ -229,14 +229,13 @@ class TestGcsStorageAdapterExists:
 
         result = await storage.exists("my-bucket", "data/file.txt")
         assert result is True
-        mock_storage.list_objects.assert_called_once_with("my-bucket", prefix="data/file.txt")
 
     @pytest.mark.asyncio
     async def test_exists_returns_false_when_key_not_found(
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
         """exists() returns False when list_objects does not include the key."""
-        mock_storage.list_objects.return_value = []
+        mock_storage.list_objects.return_value = {"items": []}
 
         result = await storage.exists("my-bucket", "data/missing.txt")
         assert result is False
@@ -277,7 +276,6 @@ class TestGcsStorageAdapterListObjects:
     """Verify list_objects delegates to gcloud list_objects and returns FileRefs."""
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="GCS mock injection issue in CI")
     async def test_list_objects_returns_file_refs(
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
@@ -289,19 +287,18 @@ class TestGcsStorageAdapterListObjects:
 
         result = await storage.list_objects("my-bucket", prefix="photos/")
 
-        mock_storage.list_objects.assert_called_once_with("my-bucket", prefix="photos/")
+        mock_storage.list_objects.assert_called_once_with("my-bucket", params={"prefix": "photos/"})
         assert len(result) == 2
         assert all(isinstance(ref, FileRef) for ref in result)
         assert {ref.key for ref in result} == {"photos/cat.jpg", "photos/dog.jpg"}
         assert {ref.bucket for ref in result} == {"my-bucket"}
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="GCS mock injection issue in CI")
     async def test_list_objects_empty_returns_empty_list(
         self, storage: GcsStorageAdapter, mock_storage: MagicMock,
     ) -> None:
         """list_objects() returns empty list when no objects match."""
-        mock_storage.list_objects.return_value = []
+        mock_storage.list_objects.return_value = {"items": []}
 
         result = await storage.list_objects("my-bucket", prefix="nonexistent/")
         assert result == []

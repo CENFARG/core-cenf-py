@@ -116,11 +116,15 @@ class RedisCacheAdapter(CacheManager):
         return f"{prefix}{key}"
 
     def _run_redis(self, factory: Callable[[], Any]) -> Any:
-        """Run a Redis coroutine factory, raising ``TransientError`` on connection failure.
+        """Run a Redis coroutine factory, safe for both sync and async contexts.
 
         The factory is a zero-argument callable that produces a coroutine
         (e.g., ``lambda: self._redis.get(key)``). This ensures exceptions
         from mock-based tests are caught inside the try block.
+
+        When called from sync code (no running event loop), uses ``asyncio.run()``.
+        When called from inside an existing event loop (e.g., async web framework),
+        runs the coroutine in a separate thread to avoid ``RuntimeError``.
 
         Args:
             factory: A callable that returns a coroutine.
@@ -133,16 +137,39 @@ class RedisCacheAdapter(CacheManager):
         """
         if self._redis is None:
             raise TransientError("Redis not available — adapter is in fallback mode")
+
+        async def _runner() -> Any:
+            return await factory()
+
         try:
-            return asyncio.run(factory())
-        except Exception as exc:
-            if type(exc).__name__ == _REDIS_CONNECTION_ERROR:
-                self._logger.error("Redis operation failed", exc=exc)
-                raise TransientError(
-                    f"Redis operation failed: {exc}",
-                    details={"key_prefix": self._key_prefix},
-                ) from exc
-            raise
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop — safe to use asyncio.run()
+            try:
+                return asyncio.run(_runner())
+            except Exception as exc:
+                if type(exc).__name__ == _REDIS_CONNECTION_ERROR:
+                    self._logger.error("Redis operation failed", exc=exc)
+                    raise TransientError(
+                        f"Redis operation failed: {exc}",
+                        details={"key_prefix": self._key_prefix},
+                    ) from exc
+                raise
+        else:
+            # Inside an event loop — run in a separate thread
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(asyncio.run, _runner())
+                try:
+                    return future.result()
+                except Exception as exc:
+                    if type(exc).__name__ == _REDIS_CONNECTION_ERROR:
+                        self._logger.error("Redis operation failed", exc=exc)
+                        raise TransientError(
+                            f"Redis operation failed: {exc}",
+                            details={"key_prefix": self._key_prefix},
+                        ) from exc
+                    raise
 
     # ------------------------------------------------------------------
     # Public API — CacheManager Protocol

@@ -264,6 +264,54 @@ class TestRedisCacheAdapterOperations:
         mock_redis_client.delete.assert_not_called()
 
 
+class TestRedisCacheAdapterEventLoopSafety:
+    """Verify adapter works both outside and inside existing event loops."""
+
+    def test_get_works_outside_event_loop(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """Adapter operations work when called from sync code (no running loop)."""
+        import asyncio
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+        mock_redis_client.get.return_value = None
+
+        # Verify no running loop exists
+        try:
+            asyncio.get_running_loop()
+            pytest.skip("Cannot test outside-loop scenario — a loop is already running")
+        except RuntimeError:
+            pass  # Expected: no running loop
+
+        # Operation should work without RuntimeError
+        result = adapter.get("test-key")
+        assert result is None
+        mock_redis_client.get.assert_called_once()
+
+    def test_get_works_inside_existing_event_loop(
+        self, config: InMemoryConfigAdapter, secrets: InMemorySecretAdapter, logger: InMemoryLoggerAdapter,
+        mock_redis_client: MagicMock,
+    ) -> None:
+        """Adapter operations work when called from inside an existing event loop."""
+        import asyncio
+        from core_infrastructure.cache.adapters.redis_cache_adapter import RedisCacheAdapter
+
+        adapter = RedisCacheAdapter(config, secrets, logger)
+        adapter._redis = mock_redis_client
+        mock_redis_client.get.return_value = None
+
+        async def call_get():
+            return adapter.get("inside-loop-key")
+
+        # Run inside a new event loop (simulates being called from async context)
+        result = asyncio.run(call_get())
+        assert result is None
+        mock_redis_client.get.assert_called_once()
+
+
 class TestRedisCacheAdapterGracefulDegradation:
     """Verify graceful degradation when Redis is unavailable."""
 

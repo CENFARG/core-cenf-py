@@ -142,6 +142,26 @@ from core_infrastructure.secrets.ports import SecretManager
 from core_infrastructure.taskqueue.models import Job, JobRef, JobStatus, QueueConfig
 from core_infrastructure.taskqueue.ports import TaskQueueManager
 
+# InMemoryUpdateAdapter (zero optional deps)
+from core_infrastructure.update.adapters.in_memory_update_adapter import (
+    InMemoryUpdateAdapter,
+)
+
+# Update Manager (Protocols + models — zero optional deps)
+from core_infrastructure.update.models import (
+    ArtifactMeta,
+    ReleaseMetadata,
+    RollbackState,
+    UpdateConfig,
+)
+from core_infrastructure.update.ports import (
+    AvailableRelease,
+    Channel,
+    UpdateArtifact,
+    UpdateManager,
+    UpdateResult,
+)
+
 # ---------------------------------------------------------------------------
 # Optional adapters — gracefully degrade if optional deps are missing
 # ---------------------------------------------------------------------------
@@ -283,6 +303,14 @@ try:
     )
 except ImportError:
     FileFeatureFlagAdapter = None  # type: ignore[assignment,misc]
+
+# Update adapters (need: cryptography, ExternalAPIManager)
+try:
+    from core_infrastructure.update.adapters.http_update_adapter import (
+        HttpUpdateAdapter,
+    )
+except ImportError:
+    HttpUpdateAdapter = None  # type: ignore[assignment,misc]
 
 # ---------------------------------------------------------------------------
 # Package metadata

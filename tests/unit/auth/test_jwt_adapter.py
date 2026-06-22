@@ -1,7 +1,7 @@
-"""Unit tests for JwtAuthAdapter — HS256 JWT validation.
+"""Unit tests for JwtAuthAdapter — HS512 JWT validation.
 
 Tests cover:
-- Valid HS256 token creation and validation
+- Valid HS512 token creation and validation
 - Expired token rejection
 - Invalid signature rejection
 - Claims extraction (sub, iss, aud, scopes, tenant_id, principal_id)
@@ -9,6 +9,7 @@ Tests cover:
 - Contextvars propagation (tenant_id, principal_id)
 - nbf (not-before) validation
 - iss/aud mismatch rejection
+- AuthConfig defaults to HS512 (NIST recommendation)
 
 Author: CENF AI Team
 Version: 0.1.0
@@ -35,23 +36,23 @@ from core_infrastructure.secrets.adapters.in_memory_secret_adapter import InMemo
 
 
 @pytest.fixture
-def hs256_secret() -> str:
-    """A valid HS256 symmetric key."""
-    return "my-super-secret-hs256-key-for-testing-only-32bytes!!"
+def hs512_secret() -> str:
+    """A valid HS512 symmetric key."""
+    return "my-super-secret-hs512-key-for-testing-only-64bytes-long!!"
 
 
 @pytest.fixture
-def auth_adapter(hs256_secret: str) -> JwtAuthAdapter:
-    """Create a JwtAuthAdapter with in-memory deps and HS256 secret."""
+def auth_adapter(hs512_secret: str) -> JwtAuthAdapter:
+    """Create a JwtAuthAdapter with in-memory deps and HS512 secret."""
     secret_manager = InMemorySecretAdapter()
-    secret_manager.set_secret("auth_signing_key", hs256_secret)
+    secret_manager.set_secret("auth_signing_key", hs512_secret)
     config = InMemoryConfigAdapter()
     logger = InMemoryLoggerAdapter()
     observability = InMemoryObservabilityAdapter()
     auth_config = AuthConfig(
         issuer="https://auth.test.cenf.tech",
         audience="cenf-api-test",
-        algorithms=["HS256"],
+        algorithms=["HS512"],
         token_leeway=30,
     )
     return JwtAuthAdapter(
@@ -66,7 +67,7 @@ def auth_adapter(hs256_secret: str) -> JwtAuthAdapter:
 def _create_token(
     secret: str,
     claims: dict,
-    algorithm: str = "HS256",
+    algorithm: str = "HS512",
 ) -> str:
     """Helper to create a JWT token for testing."""
     return jose_jwt.encode(claims, secret, algorithm=algorithm)
@@ -84,10 +85,10 @@ class TestValidTokenValidation:
     """Verify JwtAuthAdapter validates legitimate tokens."""
 
     @pytest.mark.asyncio
-    async def test_valid_token_returns_claims(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
-        """validate_token() returns TokenClaims for a valid HS256 token."""
+    async def test_valid_token_returns_claims(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
+        """validate_token() returns TokenClaims for a valid HS512 token."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-42",
                 "iss": "https://auth.test.cenf.tech",
@@ -110,10 +111,10 @@ class TestValidTokenValidation:
         assert "write:users" in claims.scopes
 
     @pytest.mark.asyncio
-    async def test_get_claims_returns_same_as_validate(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_get_claims_returns_same_as_validate(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """get_claims() returns TokenClaims identical to validate_token()."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-99",
                 "iss": "https://auth.test.cenf.tech",
@@ -130,10 +131,10 @@ class TestTokenRejection:
     """Verify JwtAuthAdapter rejects invalid tokens."""
 
     @pytest.mark.asyncio
-    async def test_expired_token_rejected(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_expired_token_rejected(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """validate_token() raises AuthError for expired tokens."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://auth.test.cenf.tech",
@@ -164,10 +165,10 @@ class TestTokenRejection:
         assert "signature" in str(exc_info.value).lower() or "invalid" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_wrong_issuer_rejected(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_wrong_issuer_rejected(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """validate_token() raises AuthError when iss doesn't match."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://evil.example.com",
@@ -181,10 +182,10 @@ class TestTokenRejection:
         assert "issuer" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_wrong_audience_rejected(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_wrong_audience_rejected(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """validate_token() raises AuthError when aud doesn't match."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://auth.test.cenf.tech",
@@ -198,10 +199,10 @@ class TestTokenRejection:
         assert "audience" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_not_before_token_rejected(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_not_before_token_rejected(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """validate_token() raises AuthError when token is not yet valid (nbf)."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://auth.test.cenf.tech",
@@ -263,14 +264,23 @@ class TestScopeValidation:
         assert result is False
 
 
+class TestAuthConfigDefaults:
+    """Verify AuthConfig secure defaults."""
+
+    def test_default_algorithm_is_hs512(self) -> None:
+        """AuthConfig() defaults to HS512 (NIST recommendation)."""
+        config = AuthConfig()
+        assert config.algorithms == ["HS512"]
+
+
 class TestContextvarsPropagation:
     """Verify token validation sets contextvars."""
 
     @pytest.mark.asyncio
-    async def test_validate_token_sets_tenant_id(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_validate_token_sets_tenant_id(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """After validate_token(), tenant_id contextvar is set from claims."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://auth.test.cenf.tech",
@@ -284,10 +294,10 @@ class TestContextvarsPropagation:
         assert get_tenant_id() == "ctx-tenant"
 
     @pytest.mark.asyncio
-    async def test_validate_token_sets_principal_id(self, auth_adapter: JwtAuthAdapter, hs256_secret: str) -> None:
+    async def test_validate_token_sets_principal_id(self, auth_adapter: JwtAuthAdapter, hs512_secret: str) -> None:
         """After validate_token(), principal_id contextvar is set from claims."""
         token = _create_token(
-            hs256_secret,
+            hs512_secret,
             {
                 "sub": "user-1",
                 "iss": "https://auth.test.cenf.tech",

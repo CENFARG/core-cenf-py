@@ -176,7 +176,7 @@ class TestAuthConfigModel:
         assert config.issuer == ""
         assert config.audience == ""
         assert config.jwks_url == ""
-        assert config.algorithms == ["HS256"]
+        assert config.algorithms == ["HS512"]
         assert config.token_leeway == 60
 
     def test_custom_algorithms(self) -> None:

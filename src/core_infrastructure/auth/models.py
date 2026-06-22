@@ -158,7 +158,7 @@ class AuthConfig(BaseModel):
         description="JWKS endpoint URL.",
     )
     algorithms: list[str] = Field(
-        default_factory=lambda: ["HS256"],
+        default_factory=lambda: ["HS512"],
         min_length=1,
         description="Allowed signing algorithms.",
     )

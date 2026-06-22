@@ -38,7 +38,6 @@ from core_infrastructure.errors.models import ErrorClassification, ErrorContext,
 from core_infrastructure.logger.ports import LoggerManager
 from core_infrastructure.observability.ports import ObservabilityManager
 
-
 # Internal mapping from CenfError subclasses to ErrorClassification
 _ERROR_CLASS_MAP: dict[type, ErrorClassification] = {
     TransientError: ErrorClassification.TRANSIENT,

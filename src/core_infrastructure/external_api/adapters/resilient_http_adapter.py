@@ -27,7 +27,6 @@ from urllib.parse import urlparse
 
 import aiohttp
 
-from core_infrastructure.common.errors import PermanentError, TransientError
 from core_infrastructure.errors.ports import ErrorHandlingManager
 from core_infrastructure.external_api.models import (
     ApiResponse,

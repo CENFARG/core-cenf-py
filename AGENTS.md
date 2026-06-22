@@ -190,10 +190,28 @@ Pipeline: `.github/workflows/ci.yml`
 |------|---------|
 | `.pre-commit-config.yaml` | Pre-commit hooks (ruff, mypy, CENF rules) |
 | `.github/workflows/ci.yml` | CI/CD pipeline |
+| `.github/workflows/publish.yml` | GitHub Packages publishing (on release) |
 | `sbom.xml` | Generated SBOM (CycloneDX) |
 | `migrations/` | Alembic database migrations |
 | `.codegraph/` | CodeGraph knowledge graph (local, regenerated with `codegraph index`) |
-| `examples/full_demo.py` | Golden path: all 16 managers working together |
+| `examples/full_demo.py` | Golden path: all 20 managers working together |
+
+---
+
+## Installation (for CENF projects)
+
+```bash
+# Option 1: Direct git install (recommended)
+pip install git+https://github.com/CENFARG/core-cenf.git
+
+# Option 2: With authentication token (private repo, CI/CD)
+pip install git+https://{GITHUB_TOKEN}@github.com/CENFARG/core-cenf.git
+
+# Option 3: Local development
+git clone https://github.com/CENFARG/core-cenf.git
+cd core-cenf
+uv venv .venv && uv pip install -e ".[dev]"
+```
 
 ---
 

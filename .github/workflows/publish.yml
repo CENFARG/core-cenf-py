@@ -1,0 +1,38 @@
+name: Publish to GitHub Packages
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Build and publish to GitHub Packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Build package
+        run: |
+          uv python install 3.12
+          uv venv .venv
+          . .venv/bin/activate
+          uv pip install build
+          python -m build
+
+      - name: Publish to GitHub Packages
+        run: |
+          . .venv/bin/activate
+          uv pip install twine
+          twine upload --repository-url https://upload.pkg.github.com/CENFARG/core-cenf \
+            --username CENFARG \
+            --password ${{ secrets.GITHUB_TOKEN }} \
+            dist/*

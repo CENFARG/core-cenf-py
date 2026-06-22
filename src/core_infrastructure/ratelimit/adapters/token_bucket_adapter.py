@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import time as _time
+from collections import deque
 from typing import Any
 
 from core_infrastructure.cache.ports import CacheManager
@@ -75,7 +76,7 @@ class TokenBucketAdapter:
         self._rl_config = RateLimitConfig(**rl_section) if rl_section else RateLimitConfig()
 
         self._buckets: dict[str, BucketState] = {}
-        self._window_timestamps: dict[str, list[float]] = {}
+        self._window_timestamps: dict[str, deque[float]] = {}
         self._window_configs: dict[str, tuple[int, float]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
 
@@ -131,12 +132,14 @@ class TokenBucketAdapter:
         except Exception:
             self._logger.warn("Failed to persist bucket state to cache", bucket_key=bucket_key)
 
-    def _redis_set_window(self, bucket_key: str, timestamps: list[float], capacity: int, refill_rate: float) -> None:
+    def _redis_set_window(self, bucket_key: str, timestamps: deque[float], capacity: int, refill_rate: float) -> None:
         """Persist sliding window state to Redis cache.
+
+        Converts deque to list for JSON serialization.
 
         Args:
             bucket_key: The bucket identifier.
-            timestamps: List of request timestamps.
+            timestamps: Deque of request timestamps.
             capacity: Max requests per window.
             refill_rate: Tokens per second (used to derive window size).
         """
@@ -144,7 +147,7 @@ class TokenBucketAdapter:
             return
         try:
             payload = {
-                "timestamps": timestamps,
+                "timestamps": list(timestamps),
                 "capacity": capacity,
                 "refill_rate": refill_rate,
                 "window_type": _WINDOW_SLIDING,
@@ -243,21 +246,23 @@ class TokenBucketAdapter:
             return float(capacity)
         return float(capacity) / refill_rate
 
-    def _get_or_create_window(self, bucket_key: str) -> tuple[list[float], int, float]:
+    def _get_or_create_window(self, bucket_key: str) -> tuple[deque[float], int, float]:
         """Retrieve or create sliding window state for a bucket.
 
-        Tries Redis cache first; falls back to in-memory dict.
+        Tries Redis cache first; falls back to in-memory deque.
 
         Args:
             bucket_key: The bucket identifier.
 
         Returns:
-            tuple[list[float], int, float]: (timestamps, capacity, refill_rate).
+            tuple[deque[float], int, float]: (timestamps, capacity, refill_rate).
         """
         raw = self._redis_get_window(bucket_key)
         if raw is not None and raw.get("window_type") == _WINDOW_SLIDING:
             try:
-                return (raw["timestamps"], raw["capacity"], raw["refill_rate"])
+                # Redis stores timestamps as list; convert to deque for O(1) popleft
+                raw_ts = raw["timestamps"]
+                return (deque(raw_ts), raw["capacity"], raw["refill_rate"])
             except (KeyError, TypeError):
                 pass
 
@@ -266,28 +271,29 @@ class TokenBucketAdapter:
                 bucket_key,
                 (self._rl_config.default_capacity, self._rl_config.default_refill_rate),
             )
-            self._window_timestamps[bucket_key] = []
+            self._window_timestamps[bucket_key] = deque()
             self._window_configs[bucket_key] = (cap, rate)
         cap, rate = self._window_configs[bucket_key]
         return (self._window_timestamps[bucket_key], cap, rate)
 
-    def _prune_window(self, timestamps: list[float], capacity: int, refill_rate: float) -> None:
+    def _prune_window(self, timestamps: deque[float], capacity: int, refill_rate: float) -> None:
         """Remove timestamps outside the current sliding window.
 
         Mutates ``timestamps`` in-place, removing entries older than
         ``_time.monotonic() - window_size``.
 
-        Uses time.monotonic() for immunity to system clock jumps.
+        Uses ``deque.popleft()`` (O(1)) instead of ``list.pop(0)`` (O(n))
+        for scalable sliding window performance under high throughput.
 
         Args:
-            timestamps: The list of request timestamps.
+            timestamps: The deque of request timestamps.
             capacity: Max requests per window.
             refill_rate: Request-equivalent rate per second.
         """
         window = self._window_size(capacity, refill_rate)
         cutoff = _time.monotonic() - window
         while timestamps and timestamps[0] < cutoff:
-            timestamps.pop(0)
+            timestamps.popleft()
 
     # ------------------------------------------------------------------
     # Public API — RateLimiterManager Protocol
@@ -418,9 +424,9 @@ class TokenBucketAdapter:
         """
         if window_type == _WINDOW_SLIDING:
             self._buckets.pop(bucket_key, None)
-            self._window_timestamps[bucket_key] = []
+            self._window_timestamps[bucket_key] = deque()
             self._window_configs[bucket_key] = (capacity, refill_rate)
-            self._redis_set_window(bucket_key, [], capacity, refill_rate)
+            self._redis_set_window(bucket_key, deque(), capacity, refill_rate)
         else:
             self._window_timestamps.pop(bucket_key, None)
             self._window_configs.pop(bucket_key, None)

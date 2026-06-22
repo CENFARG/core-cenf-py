@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import time as _time
+from collections import deque
 
 import pytest
 
@@ -219,3 +220,39 @@ class TestSlidingWindowVsTokenBucket:
 
         # Sliding window is independent and still allows
         assert await adapter.is_allowed("sw-indep") is True
+
+
+class TestSlidingWindowUsesDeque:
+    """Verify sliding window uses collections.deque for O(1) popleft().
+
+    With list.pop(0), pruning N timestamps takes O(N²) time because each
+    pop(0) shifts all remaining elements. collections.deque.popleft()
+    is O(1), making the sliding window scalable under high throughput.
+    """
+
+    def test_window_timestamps_use_deque(
+        self,
+        adapter: TokenBucketAdapter,
+    ) -> None:
+        """After configuring a sliding window, timestamps are stored in a deque."""
+        adapter.configure_bucket(
+            "sw-deque", capacity=10, refill_rate=1.0, window_type="sliding_window"
+        )
+        timestamps = adapter._window_timestamps.get("sw-deque")
+        assert timestamps is not None, "Window timestamps should be initialized"
+        assert isinstance(timestamps, deque), (
+            f"Expected deque for O(1) popleft(), got {type(timestamps).__name__}"
+        )
+
+    @pytest.mark.asyncio
+    async def test_prune_window_uses_popleft(
+        self,
+        adapter: TokenBucketAdapter,
+    ) -> None:
+        """Pruning old timestamps uses O(1) popleft() instead of O(n) pop(0)."""
+        adapter.configure_bucket(
+            "sw-popleft", capacity=1000, refill_rate=100.0, window_type="sliding_window"
+        )
+        # Verify deque methods are available (popleft exists, pop(0) doesn't on deque)
+        timestamps = adapter._window_timestamps["sw-popleft"]
+        assert hasattr(timestamps, "popleft"), "deque must have popleft() for O(1) left-pop"

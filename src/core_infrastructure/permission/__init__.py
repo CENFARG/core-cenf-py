@@ -16,6 +16,12 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
+from core_infrastructure.permission.adapters.casbin_permission_adapter import (
+    CasbinPermissionAdapter,
+)
+from core_infrastructure.permission.adapters.in_memory_permission_adapter import (
+    InMemoryPermissionAdapter,
+)
 from core_infrastructure.permission.models import (
     DelegationRecord,
     PermissionConfig,
@@ -30,7 +36,9 @@ from core_infrastructure.permission.ports import (
 
 __all__ = [
     "Action",
+    "CasbinPermissionAdapter",
     "DelegationRecord",
+    "InMemoryPermissionAdapter",
     "PermissionConfig",
     "PermissionDecision",
     "PermissionManager",

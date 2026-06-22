@@ -111,6 +111,20 @@ from core_infrastructure.observability.adapters.noop_observability_adapter impor
 )
 from core_infrastructure.observability.models import ObservabilitySettings
 from core_infrastructure.observability.ports import ObservabilityManager
+from core_infrastructure.permission.adapters.in_memory_permission_adapter import (
+    InMemoryPermissionAdapter,
+)
+from core_infrastructure.permission.models import (
+    DelegationRecord,
+    PermissionConfig,
+    PermissionResult,
+)
+from core_infrastructure.permission.ports import (
+    Action,
+    PermissionDecision,
+    PermissionManager,
+    PrincipalType,
+)
 from core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter import InMemoryRateLimitAdapter
 from core_infrastructure.ratelimit.adapters.token_bucket_adapter import TokenBucketAdapter
 from core_infrastructure.ratelimit.models import BucketState, RateLimitConfig, RateLimitHeaders
@@ -238,6 +252,14 @@ try:
     from core_infrastructure.alert.adapters.dispatch_alert_adapter import DispatchAlertAdapter
 except ImportError:
     DispatchAlertAdapter = None  # type: ignore[assignment,misc]
+
+# Permission adapters (need: pycasbin)
+try:
+    from core_infrastructure.permission.adapters.casbin_permission_adapter import (
+        CasbinPermissionAdapter,
+    )
+except ImportError:
+    CasbinPermissionAdapter = None  # type: ignore[assignment,misc]
 
 # Feature flag adapters (need: watchfiles, pyyaml)
 try:

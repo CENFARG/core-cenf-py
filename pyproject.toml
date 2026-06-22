@@ -32,6 +32,7 @@ dependencies = [
     "cryptography>=43.0",
     "python-dotenv>=1.0",
     "python-jose[cryptography]>=3.3",
+    "pycasbin>=1.9",
 ]
 
 [project.scripts]
@@ -133,6 +134,7 @@ module = [
     "saq",
     "saq.*",
     "aiofiles",
+    "casbin",
 ]
 ignore_missing_imports = true
 

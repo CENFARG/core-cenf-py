@@ -1,0 +1,1 @@
+"""CENF LicenceManager adapters package."""

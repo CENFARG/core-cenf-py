@@ -16,12 +16,7 @@ from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("core-cenf-search")
 
-# ---------------------------------------------------------------------------
-# FTS5 Engine
-# ---------------------------------------------------------------------------
-
 _CATALOG: list[dict[str, Any]] = []
-_DB_PATH = ":memory:"
 
 
 def _build_index(catalog_path: str | Path) -> None:
@@ -31,10 +26,13 @@ def _build_index(catalog_path: str | Path) -> None:
         data = json.load(f)
     _CATALOG = data.get("managers", [])
 
-    db = sqlite3.connect(_DB_PATH)
+    db = sqlite3.connect(":memory:")
     db.execute("CREATE VIRTUAL TABLE IF NOT EXISTS managers_fts USING fts5(manager_name, methods, directives)")
     for mgr in _CATALOG:
-        methods_text = " ".join(f"{m['name']} {m.get('returns', {}).get('type', '')}" for m in mgr.get("methods", []))
+        methods_text = " ".join(
+            f"{m['name']} {m.get('returns', {}).get('type', '')}"
+            for m in mgr.get("methods", [])
+        )
         directives_text = " ".join(mgr.get("directives", []))
         db.execute(
             "INSERT INTO managers_fts(manager_name, methods, directives) VALUES(?, ?, ?)",
@@ -44,29 +42,24 @@ def _build_index(catalog_path: str | Path) -> None:
     db.close()
 
 
-# ---------------------------------------------------------------------------
-# MCP Tools
-# ---------------------------------------------------------------------------
-
-
 @mcp.tool()
 def search_core_cenf(query: str) -> str:
-    """Search across all 20 core-cenf managers by method name, description, or @ai-directive.
+    """Search across all 20 core-cenf managers by method name or @ai-directive.
 
     Args:
-        query: Natural language query. Examples: "rate limiting", "how to log errors", "JWT validation".
+        query: Natural language query. Examples: "rate limiting", "JWT validation", "cache".
 
     Returns:
         Formatted list of matching managers with relevant methods and directives.
     """
-    db = sqlite3.connect(_DB_PATH)
+    db = sqlite3.connect(":memory:")
+    _build_index("agents/api-catalog.json")  # re-index for fresh connection
     try:
         rows = db.execute(
             "SELECT manager_name, methods, directives FROM managers_fts WHERE managers_fts MATCH ? ORDER BY rank LIMIT 5",
             (query,),
         ).fetchall()
     except sqlite3.OperationalError:
-        # Fallback to LIKE search if FTS5 syntax error
         rows = db.execute(
             "SELECT manager_name, methods, directives FROM managers_fts WHERE manager_name LIKE ? LIMIT 5",
             (f"%{query}%",),
@@ -97,6 +90,7 @@ def get_manager(name: str) -> str:
     Returns:
         Full manager details: methods, dependencies, directives, adapter imports.
     """
+    _build_index("agents/api-catalog.json")
     for mgr in _CATALOG:
         if mgr["name"].lower() == name.lower():
             methods = "\n".join(
@@ -118,11 +112,6 @@ def get_manager(name: str) -> str:
 **Package**: `{mgr['package']}`
 """
     return f"Manager '{name}' not found. Available: {', '.join(m['name'] for m in _CATALOG)}"
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:

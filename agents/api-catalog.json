@@ -1,0 +1,1442 @@
+{
+  "$schema": "https://cenf.tech/schemas/api-catalog-v1.json",
+  "project": "core-cenf",
+  "version": "0.1.0",
+  "generated": "2026-06-22",
+  "managers": [
+    {
+      "id": "M01",
+      "name": "ConfigManager",
+      "package": "core_infrastructure.config",
+      "dependencies": [],
+      "directives": [
+        "The generic type parameters on get_json[T] and get_section[T] MUST be preserved by all adapter implementations for mypy strict mode.",
+        "When adding a new config key, update CoreSettings AND ensure both adapters handle the new key correctly."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.config.adapters.pydantic_config_adapter.PydanticConfigAdapter",
+        "test": "core_infrastructure.config.adapters.in_memory_config_adapter.InMemoryConfigAdapter"
+      },
+      "methods": [
+        {
+          "name": "get_env",
+          "async": false,
+          "params": [],
+          "returns": {"type": "Env", "notes": "Literal[\"local\",\"dev\",\"staging\",\"prod\"]"},
+          "raises": []
+        },
+        {
+          "name": "get_string",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "default_value", "type": "str | None", "default": "None"}
+          ],
+          "returns": {"type": "str"},
+          "raises": [{"type": "ValidationError", "when": "key missing and no default"}]
+        },
+        {
+          "name": "get_number",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "default_value", "type": "float | None", "default": "None"}
+          ],
+          "returns": {"type": "float"},
+          "raises": [{"type": "ValidationError", "when": "key missing and no default, or value not numeric"}]
+        },
+        {
+          "name": "get_boolean",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "default_value", "type": "bool | None", "default": "None"}
+          ],
+          "returns": {"type": "bool"},
+          "raises": [{"type": "ValidationError", "when": "key missing and no default, or value not boolean"}]
+        },
+        {
+          "name": "get_json",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "default_value", "type": "Any", "default": "None"}
+          ],
+          "returns": {"type": "Any"},
+          "raises": [{"type": "ValidationError", "when": "value is not valid JSON"}]
+        },
+        {
+          "name": "get_section",
+          "async": false,
+          "params": [
+            {"name": "namespace", "type": "str"}
+          ],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        },
+        {
+          "name": "reload",
+          "async": true,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M02",
+      "name": "LoggerManager",
+      "package": "core_infrastructure.logger",
+      "dependencies": ["ConfigManager"],
+      "directives": [
+        "LoggerManager methods are SYNC only — structlog is sync, no async log methods are needed.",
+        "When adding a new log level, update both the Protocol and all adapter implementations."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.logger.adapters.structlog_adapter.StructlogAdapter",
+        "test": "core_infrastructure.logger.adapters.in_memory_logger_adapter.InMemoryLoggerAdapter"
+      },
+      "methods": [
+        {
+          "name": "debug",
+          "async": false,
+          "params": [
+            {"name": "message", "type": "str"},
+            {"name": "**kwargs", "type": "Any"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "info",
+          "async": false,
+          "params": [
+            {"name": "message", "type": "str"},
+            {"name": "**kwargs", "type": "Any"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "warn",
+          "async": false,
+          "params": [
+            {"name": "message", "type": "str"},
+            {"name": "**kwargs", "type": "Any"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "error",
+          "async": false,
+          "params": [
+            {"name": "message", "type": "str"},
+            {"name": "exc", "type": "Exception | None", "default": "None"},
+            {"name": "**kwargs", "type": "Any"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "bind",
+          "async": false,
+          "params": [
+            {"name": "**kwargs", "type": "Any"}
+          ],
+          "returns": {"type": "LoggerManager"},
+          "raises": []
+        },
+        {
+          "name": "mask",
+          "async": false,
+          "params": [
+            {"name": "value", "type": "str"},
+            {"name": "visible_chars", "type": "int", "default": "4"}
+          ],
+          "returns": {"type": "str"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M03",
+      "name": "SecretManager",
+      "package": "core_infrastructure.secrets",
+      "dependencies": ["ConfigManager", "LoggerManager"],
+      "directives": [
+        "All secret adapters MUST mask secrets in __repr__ and logs. NEVER add a method that returns raw secrets without masking warnings.",
+        "When adding a new method, update all adapter implementations AND ensure SecretValue.__repr__ masking covers any new return paths."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.secrets.adapters.encrypted_secret_adapter.EncryptedSecretAdapter",
+        "test": "core_infrastructure.secrets.adapters.in_memory_secret_adapter.InMemorySecretAdapter"
+      },
+      "methods": [
+        {
+          "name": "get_secret",
+          "async": true,
+          "params": [
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "str"},
+          "raises": [
+            {"type": "ValidationError", "when": "key not found or empty"},
+            {"type": "PermanentError", "when": "storage backend corrupted or unreachable"}
+          ]
+        },
+        {
+          "name": "invalidate_cache",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "rotate_secret",
+          "async": true,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "new_value", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": [
+            {"type": "PermanentError", "when": "write to backing storage fails"}
+          ]
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M04",
+      "name": "ErrorHandlingManager",
+      "package": "core_infrastructure.errors",
+      "dependencies": ["LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "handle_errors is a synchronous decorator factory. It MUST be applied BEFORE any framework-level middleware that catches exceptions.",
+        "When adding a new error taxonomy member, update both ErrorClassification enum AND classify() implementation.",
+        "The decorator MUST use @functools.wraps to preserve function metadata. It MUST NEVER swallow errors."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.errors.adapters.classification_adapter.ClassificationAdapter",
+        "test": "core_infrastructure.errors.adapters.capturing_error_adapter.CapturingErrorAdapter"
+      },
+      "methods": [
+        {
+          "name": "classify",
+          "async": false,
+          "params": [
+            {"name": "error", "type": "Exception"}
+          ],
+          "returns": {"type": "ErrorClassification"},
+          "raises": []
+        },
+        {
+          "name": "report",
+          "async": false,
+          "params": [
+            {"name": "error", "type": "Exception"},
+            {"name": "context", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "handle",
+          "async": false,
+          "params": [
+            {"name": "error", "type": "Exception"},
+            {"name": "context", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "ErrorReport"},
+          "raises": []
+        },
+        {
+          "name": "handle_errors",
+          "async": false,
+          "params": [
+            {"name": "**decorator_opts", "type": "Any"}
+          ],
+          "returns": {"type": "Callable[[F], F]"},
+          "raises": [{"type": "Exception", "when": "ALWAYS re-raises — NEVER swallows"}]
+        }
+      ]
+    },
+    {
+      "id": "M05",
+      "name": "ObservabilityManager",
+      "package": "core_infrastructure.observability",
+      "dependencies": ["ConfigManager"],
+      "directives": [
+        "ObservabilityManager methods are SYNC except flush(). NEVER throw on telemetry failure — degrade gracefully.",
+        "When adding a new metric type, update both the Protocol and all adapter implementations."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.observability.adapters.otel_adapter.OtelAdapter",
+        "test": "core_infrastructure.observability.adapters.in_memory_observability_adapter.InMemoryObservabilityAdapter"
+      },
+      "methods": [
+        {
+          "name": "increment_counter",
+          "async": false,
+          "params": [
+            {"name": "name", "type": "str"},
+            {"name": "value", "type": "float", "default": "1.0"},
+            {"name": "attributes", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "record_histogram",
+          "async": false,
+          "params": [
+            {"name": "name", "type": "str"},
+            {"name": "value", "type": "float"},
+            {"name": "attributes", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "start_span",
+          "async": false,
+          "params": [
+            {"name": "name", "type": "str"},
+            {"name": "attributes", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "Any", "notes": "span object usable as context manager"},
+          "raises": []
+        },
+        {
+          "name": "get_current_span",
+          "async": false,
+          "params": [],
+          "returns": {"type": "Any | None"},
+          "raises": []
+        },
+        {
+          "name": "get_trace_id",
+          "async": false,
+          "params": [],
+          "returns": {"type": "str", "notes": "hex string; empty string if no trace active"},
+          "raises": []
+        },
+        {
+          "name": "flush",
+          "async": true,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M06",
+      "name": "AuthManager",
+      "package": "core_infrastructure.auth",
+      "dependencies": ["ConfigManager", "SecretManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "All validate_token() methods MUST be async — token validation may involve network I/O (JWKS refresh). NEVER cache validation results indefinitely.",
+        "When adding a new validation check, update all adapter implementations AND TokenClaims model."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.auth.adapters.jwt_auth_adapter.JwtAuthAdapter",
+        "test": "core_infrastructure.auth.adapters.static_auth_adapter.StaticAuthAdapter"
+      },
+      "methods": [
+        {
+          "name": "validate_token",
+          "async": true,
+          "params": [
+            {"name": "token", "type": "str"}
+          ],
+          "returns": {"type": "TokenClaims"},
+          "raises": [{"type": "AuthError", "when": "token expired, invalid signature, wrong issuer/audience, or not yet valid"}]
+        },
+        {
+          "name": "get_claims",
+          "async": true,
+          "params": [
+            {"name": "token", "type": "str"}
+          ],
+          "returns": {"type": "TokenClaims"},
+          "raises": [{"type": "AuthError", "when": "token cannot be decoded"}]
+        },
+        {
+          "name": "refresh_jwks",
+          "async": true,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": [{"type": "AuthError", "when": "JWKS endpoint unreachable"}]
+        },
+        {
+          "name": "validate_scopes",
+          "async": false,
+          "params": [
+            {"name": "claims", "type": "TokenClaims"},
+            {"name": "required", "type": "list[str]"}
+          ],
+          "returns": {"type": "bool"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M07",
+      "name": "CacheManager",
+      "package": "core_infrastructure.cache",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "get_or_set() MUST implement XFetch stampede mitigation. The factory callable MUST be async-compatible for I/O-bound value generation.",
+        "All methods are synchronous. get_or_set() factory may be sync or async; sync factories are called directly, async factories must be managed by the caller (this Protocol does NOT mandate asyncio)."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.cache.adapters.redis_cache_adapter.RedisCacheAdapter",
+        "test": "core_infrastructure.cache.adapters.memory_cache_adapter.MemoryCacheAdapter"
+      },
+      "methods": [
+        {
+          "name": "get",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "Any", "notes": "None on miss or expiry"},
+          "raises": []
+        },
+        {
+          "name": "set",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "value", "type": "Any"},
+            {"name": "ttl", "type": "int | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "delete",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "exists",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "bool"},
+          "raises": []
+        },
+        {
+          "name": "clear",
+          "async": false,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_or_set",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "factory", "type": "Callable[[], Any]"},
+            {"name": "ttl", "type": "int | None", "default": "None"}
+          ],
+          "returns": {"type": "Any"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M08",
+      "name": "DatabaseManager",
+      "package": "core_infrastructure.database",
+      "dependencies": ["ConfigManager", "SecretManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "GenericRepository[T] is a Protocol with TypeVar T — adapter implementations MUST preserve the generic type for mypy strict mode.",
+        "All repository methods are async because they may involve network I/O (database queries). In-memory adapter simulates this with synchronous operations wrapped in coroutines."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.database.adapters.sqlalchemy_adapter.SqlalchemyAdapter",
+        "test": "core_infrastructure.database.adapters.memory_database_adapter.MemoryDatabaseAdapter"
+      },
+      "methods": [
+        {
+          "name": "transaction",
+          "async": true,
+          "params": [],
+          "returns": {"type": "AbstractAsyncContextManager[TransactionScope]", "notes": "async with db.transaction() as tx:"},
+          "raises": []
+        },
+        {
+          "name": "get_repository",
+          "async": false,
+          "params": [
+            {"name": "entity_type", "type": "type[T]"}
+          ],
+          "returns": {"type": "GenericRepository[T]"},
+          "raises": []
+        }
+      ],
+      "sub_protocols": [
+        {
+          "name": "TransactionScope",
+          "methods": [
+            {
+              "name": "commit",
+              "async": true,
+              "params": [],
+              "returns": {"type": "None"},
+              "raises": [{"type": "PermanentError", "when": "commit fails (e.g. constraint violation)"}]
+            },
+            {
+              "name": "rollback",
+              "async": true,
+              "params": [],
+              "returns": {"type": "None"},
+              "raises": []
+            }
+          ]
+        },
+        {
+          "name": "GenericRepository",
+          "type_parameter": "T",
+          "methods": [
+            {
+              "name": "find_by_id",
+              "async": true,
+              "params": [
+                {"name": "id", "type": "Any"}
+              ],
+              "returns": {"type": "T | None"},
+              "raises": []
+            },
+            {
+              "name": "find_all",
+              "async": true,
+              "params": [
+                {"name": "filters", "type": "dict[str, Any] | None", "default": "None"},
+                {"name": "order_by", "type": "str | None", "default": "None"},
+                {"name": "limit", "type": "int", "default": "100"},
+                {"name": "offset", "type": "int", "default": "0"}
+              ],
+              "returns": {"type": "list[T]"},
+              "raises": []
+            },
+            {
+              "name": "insert",
+              "async": true,
+              "params": [
+                {"name": "entity", "type": "T"}
+              ],
+              "returns": {"type": "T", "notes": "entity with generated id populated"},
+              "raises": []
+            },
+            {
+              "name": "update",
+              "async": true,
+              "params": [
+                {"name": "entity", "type": "T"}
+              ],
+              "returns": {"type": "T"},
+              "raises": [{"type": "ValidationError", "when": "entity does not exist"}]
+            },
+            {
+              "name": "delete",
+              "async": true,
+              "params": [
+                {"name": "id", "type": "Any"}
+              ],
+              "returns": {"type": "None"},
+              "raises": []
+            },
+            {
+              "name": "count",
+              "async": true,
+              "params": [
+                {"name": "filters", "type": "dict[str, Any] | None", "default": "None"}
+              ],
+              "returns": {"type": "int", "notes": "0 if none match"},
+              "raises": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "M09",
+      "name": "FileStorageManager",
+      "package": "core_infrastructure.filestorage",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "When implementing a new adapter, ensure upload() accepts bytes (not str) for data to avoid encoding ambiguity."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.filestorage.adapters.s3_storage_adapter.S3StorageAdapter",
+        "test": "core_infrastructure.filestorage.adapters.memory_storage_adapter.MemoryStorageAdapter"
+      },
+      "methods": [
+        {
+          "name": "upload",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "key", "type": "str"},
+            {"name": "data", "type": "bytes"},
+            {"name": "content_type", "type": "str", "default": "\"application/octet-stream\""}
+          ],
+          "returns": {"type": "UploadResult"},
+          "raises": [
+            {"type": "ValidationError", "when": "bucket or key invalid"},
+            {"type": "PermanentError", "when": "write fails (disk full, permission denied)"}
+          ]
+        },
+        {
+          "name": "download",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "bytes"},
+          "raises": [
+            {"type": "ValidationError", "when": "object does not exist"},
+            {"type": "PermanentError", "when": "read fails"}
+          ]
+        },
+        {
+          "name": "delete",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "exists",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "bool"},
+          "raises": []
+        },
+        {
+          "name": "generate_presigned_url",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "key", "type": "str"},
+            {"name": "expiry", "type": "int", "default": "3600"}
+          ],
+          "returns": {"type": "str"},
+          "raises": [
+            {"type": "ValidationError", "when": "object does not exist"}
+          ]
+        },
+        {
+          "name": "list_objects",
+          "async": true,
+          "params": [
+            {"name": "bucket", "type": "str"},
+            {"name": "prefix", "type": "str", "default": "\"\""}
+          ],
+          "returns": {"type": "list[FileRef]", "notes": "empty list if none match"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M10",
+      "name": "TaskQueueManager",
+      "package": "core_infrastructure.taskqueue",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Ack/nack MUST be idempotent — calling ack on an already-acked job is a no-op. DLQ jobs require manual inspection and reprocessing."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.taskqueue.adapters.saq_adapter.SaqAdapter",
+        "test": "core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter.MemoryTaskQueueAdapter"
+      },
+      "methods": [
+        {
+          "name": "enqueue",
+          "async": true,
+          "params": [
+            {"name": "queue_name", "type": "str"},
+            {"name": "payload", "type": "dict[str, Any]"},
+            {"name": "max_retries", "type": "int | None", "default": "None"}
+          ],
+          "returns": {"type": "JobRef"},
+          "raises": [{"type": "ValidationError", "when": "payload is not JSON-serializable"}]
+        },
+        {
+          "name": "dequeue",
+          "async": true,
+          "params": [
+            {"name": "queue_name", "type": "str"}
+          ],
+          "returns": {"type": "Job | None", "notes": "None if queue empty"},
+          "raises": []
+        },
+        {
+          "name": "ack",
+          "async": true,
+          "params": [
+            {"name": "job_id", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "nack",
+          "async": true,
+          "params": [
+            {"name": "job_id", "type": "str"},
+            {"name": "requeue", "type": "bool", "default": "True"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "schedule",
+          "async": true,
+          "params": [
+            {"name": "queue_name", "type": "str"},
+            {"name": "payload", "type": "dict[str, Any]"},
+            {"name": "execute_at", "type": "datetime"},
+            {"name": "max_retries", "type": "int | None", "default": "None"}
+          ],
+          "returns": {"type": "JobRef"},
+          "raises": [{"type": "ValidationError", "when": "payload is not JSON-serializable"}]
+        },
+        {
+          "name": "get_job",
+          "async": true,
+          "params": [
+            {"name": "job_id", "type": "str"}
+          ],
+          "returns": {"type": "Job | None", "notes": "None for unknown IDs; never raises"},
+          "raises": []
+        },
+        {
+          "name": "get_dlq_jobs",
+          "async": true,
+          "params": [
+            {"name": "queue_name", "type": "str"}
+          ],
+          "returns": {"type": "list[Job]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M11",
+      "name": "ExternalAPIManager",
+      "package": "core_infrastructure.external_api",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager", "AuthManager"],
+      "directives": [
+        "Circuit breaker is per-host — hosts are extracted from URL. get_circuit_state() is synchronous (reads cached state, no I/O)."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.external_api.adapters.resilient_http_adapter.ResilientHttpAdapter",
+        "test": "core_infrastructure.external_api.adapters.mock_http_adapter.MockHTTPAdapter"
+      },
+      "methods": [
+        {
+          "name": "request",
+          "async": true,
+          "params": [
+            {"name": "method", "type": "str"},
+            {"name": "url", "type": "str"},
+            {"name": "headers", "type": "dict[str, str] | None", "default": "None"},
+            {"name": "body", "type": "dict[str, Any] | None", "default": "None"},
+            {"name": "timeout", "type": "float | None", "default": "None"},
+            {"name": "retry_policy", "type": "RetryPolicy | None", "default": "None"}
+          ],
+          "returns": {"type": "ApiResponse"},
+          "raises": []
+        },
+        {
+          "name": "get",
+          "async": true,
+          "params": [
+            {"name": "url", "type": "str"},
+            {"name": "headers", "type": "dict[str, str] | None", "default": "None"},
+            {"name": "timeout", "type": "float | None", "default": "None"}
+          ],
+          "returns": {"type": "ApiResponse"},
+          "raises": []
+        },
+        {
+          "name": "post",
+          "async": true,
+          "params": [
+            {"name": "url", "type": "str"},
+            {"name": "body", "type": "dict[str, Any] | None", "default": "None"},
+            {"name": "headers", "type": "dict[str, str] | None", "default": "None"},
+            {"name": "timeout", "type": "float | None", "default": "None"}
+          ],
+          "returns": {"type": "ApiResponse"},
+          "raises": []
+        },
+        {
+          "name": "get_circuit_state",
+          "async": false,
+          "params": [
+            {"name": "host", "type": "str"}
+          ],
+          "returns": {"type": "CircuitState"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M12",
+      "name": "FeatureFlagManager",
+      "package": "core_infrastructure.feature_flags",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "is_enabled() MUST return False for unknown flags — never throw. get_flag_value() returns default on cache miss. refresh() is async for Unleash polling but may be sync for memory adapters."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.feature_flags.adapters.file_feature_flag_adapter.FileFeatureFlagAdapter",
+        "test": "core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter.MemoryFeatureFlagAdapter"
+      },
+      "methods": [
+        {
+          "name": "is_enabled",
+          "async": false,
+          "params": [
+            {"name": "flag_key", "type": "str"},
+            {"name": "context", "type": "FlagContext | None", "default": "None"}
+          ],
+          "returns": {"type": "bool", "notes": "False for unknown flags"},
+          "raises": []
+        },
+        {
+          "name": "get_flag_value",
+          "async": false,
+          "params": [
+            {"name": "flag_key", "type": "str"},
+            {"name": "context", "type": "FlagContext | None", "default": "None"},
+            {"name": "default", "type": "Any", "default": "None"}
+          ],
+          "returns": {"type": "Any"},
+          "raises": []
+        },
+        {
+          "name": "get_all_flags",
+          "async": false,
+          "params": [
+            {"name": "context", "type": "FlagContext | None", "default": "None"}
+          ],
+          "returns": {"type": "dict[str, bool]"},
+          "raises": []
+        },
+        {
+          "name": "refresh",
+          "async": true,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M13",
+      "name": "DependencyManager",
+      "package": "core_infrastructure.dependency",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "module_path must come from a registry allowlisted; never from direct user input."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.dependency.adapters.importlib_dependency_adapter.ImportlibDependencyAdapter",
+        "test": "core_infrastructure.dependency.adapters.in_memory_dependency_adapter.InMemoryDependencyAdapter"
+      },
+      "methods": [
+        {
+          "name": "resolve_class",
+          "async": false,
+          "params": [
+            {"name": "module_path", "type": "str"},
+            {"name": "class_name", "type": "str"}
+          ],
+          "returns": {"type": "type"},
+          "raises": [
+            {"type": "ValidationError", "when": "module_path not in allowlist"},
+            {"type": "ModuleNotFoundError", "when": "module cannot be imported"},
+            {"type": "AttributeError", "when": "class_name not found in module"}
+          ]
+        },
+        {
+          "name": "register",
+          "async": false,
+          "params": [
+            {"name": "namespace", "type": "str"},
+            {"name": "key", "type": "str"},
+            {"name": "target", "type": "tuple[str, str] | Any"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "is_known",
+          "async": false,
+          "params": [
+            {"name": "namespace", "type": "str"},
+            {"name": "key", "type": "str"}
+          ],
+          "returns": {"type": "bool"},
+          "raises": []
+        },
+        {
+          "name": "list_keys",
+          "async": false,
+          "params": [
+            {"name": "namespace", "type": "str"}
+          ],
+          "returns": {"type": "list[str]"},
+          "raises": []
+        },
+        {
+          "name": "invalidate_cache",
+          "async": true,
+          "params": [],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_required_packages",
+          "async": false,
+          "params": [],
+          "returns": {"type": "list[str]"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M14",
+      "name": "DynamicPromptingManager",
+      "package": "core_infrastructure.dynamic_prompting",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Condition matching is dict-based for MVP — CEL is future."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.dynamic_prompting.adapters.conditional_prompt_adapter.ConditionalPromptAdapter",
+        "test": "core_infrastructure.dynamic_prompting.adapters.conditional_prompt_adapter.ConditionalPromptAdapter"
+      },
+      "methods": [
+        {
+          "name": "assemble",
+          "async": true,
+          "params": [
+            {"name": "base_prompt", "type": "str | None"},
+            {"name": "blocks", "type": "list[PromptBlock]"},
+            {"name": "context_state", "type": "dict[str, Any]"}
+          ],
+          "returns": {"type": "str"},
+          "raises": []
+        },
+        {
+          "name": "validate_blocks",
+          "async": false,
+          "params": [
+            {"name": "blocks", "type": "list[PromptBlock]"}
+          ],
+          "returns": {"type": "list[str]", "notes": "empty list if valid"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ],
+      "models": {
+        "PromptBlock": {
+          "fields": [
+            {"name": "id", "type": "str", "required": true, "constraints": "min_length=1, unique"},
+            {"name": "condition", "type": "dict[str, Any] | None", "required": false, "default": "None"},
+            {"name": "content", "type": "str", "required": true, "constraints": "min_length=1"},
+            {"name": "priority", "type": "int", "required": false, "default": "10", "constraints": "range 0-100"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "M15",
+      "name": "AlertManager",
+      "package": "core_infrastructure.alert",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager", "SecretManager"],
+      "directives": [
+        "Dict-based condition matching for MVP. CEL integration is planned for a future release."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.alert.adapters.dispatch_alert_adapter.DispatchAlertAdapter",
+        "test": "core_infrastructure.alert.adapters.dispatch_alert_adapter.DispatchAlertAdapter"
+      },
+      "methods": [
+        {
+          "name": "send_alert",
+          "async": true,
+          "params": [
+            {"name": "level", "type": "AlertLevel"},
+            {"name": "title", "type": "str"},
+            {"name": "message", "type": "str"},
+            {"name": "metadata", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "register_rule",
+          "async": false,
+          "params": [
+            {"name": "rule", "type": "AlertRule"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "evaluate_and_alert",
+          "async": true,
+          "params": [
+            {"name": "event_context", "type": "dict[str, Any]"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ],
+      "types": {
+        "AlertLevel": {
+          "kind": "StrEnum",
+          "values": ["info", "warning", "critical"]
+        },
+        "AlertRule": {
+          "kind": "PydanticBaseModel",
+          "fields": [
+            {"name": "rule_id", "type": "str", "constraints": "min_length=1, max_length=128"},
+            {"name": "condition", "type": "dict[str, Any]", "required": true},
+            {"name": "level", "type": "AlertLevel", "default": "WARNING"},
+            {"name": "channels", "type": "list[str]", "constraints": "min_length=1"},
+            {"name": "throttle_seconds", "type": "int", "default": "60", "constraints": "ge=0, le=3600"}
+          ]
+        }
+      }
+    },
+    {
+      "id": "M16",
+      "name": "RateLimiterManager",
+      "package": "core_infrastructure.ratelimit",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Use is_allowed before any rate-limited operation. Bucket keys are arbitrary strings."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.ratelimit.adapters.token_bucket_adapter.TokenBucketAdapter",
+        "test": "core_infrastructure.ratelimit.adapters.in_memory_ratelimit_adapter.InMemoryRateLimitAdapter"
+      },
+      "methods": [
+        {
+          "name": "is_allowed",
+          "async": true,
+          "params": [
+            {"name": "bucket_key", "type": "str"},
+            {"name": "cost", "type": "float", "default": "1.0"}
+          ],
+          "returns": {"type": "bool", "notes": "True=allowed (tokens consumed), False=rate-limited"},
+          "raises": []
+        },
+        {
+          "name": "get_remaining",
+          "async": true,
+          "params": [
+            {"name": "bucket_key", "type": "str"}
+          ],
+          "returns": {"type": "int", "notes": "floored to int; read-only"},
+          "raises": []
+        },
+        {
+          "name": "get_reset_time",
+          "async": true,
+          "params": [
+            {"name": "bucket_key", "type": "str"}
+          ],
+          "returns": {"type": "float", "notes": "Unix timestamp"},
+          "raises": []
+        },
+        {
+          "name": "configure_bucket",
+          "async": false,
+          "params": [
+            {"name": "bucket_key", "type": "str"},
+            {"name": "capacity", "type": "int"},
+            {"name": "refill_rate", "type": "float"},
+            {"name": "window_type", "type": "str", "default": "\"token_bucket\""}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M17",
+      "name": "I18nManager",
+      "package": "core_infrastructure.i18n",
+      "dependencies": ["ConfigManager", "LoggerManager"],
+      "directives": [
+        "NEVER throw on missing translation — return [missing: key] as a visible fallback so developers can spot untranslated strings.",
+        "When adding a new locale, update the YAML file AND ensure both adapters handle the new locale correctly."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.i18n.adapters.yaml_i18n_adapter.YamlI18nAdapter",
+        "test": "core_infrastructure.i18n.adapters.in_memory_i18n_adapter.InMemoryI18nAdapter"
+      },
+      "methods": [
+        {
+          "name": "set_locale",
+          "async": false,
+          "params": [
+            {"name": "locale", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "t",
+          "async": false,
+          "params": [
+            {"name": "key", "type": "str"},
+            {"name": "**params", "type": "Any"}
+          ],
+          "returns": {"type": "str", "notes": "[missing: key] for missing keys; NEVER raises"},
+          "raises": []
+        },
+        {
+          "name": "get_available_locales",
+          "async": false,
+          "params": [],
+          "returns": {"type": "list[str]", "notes": "sorted locale codes"},
+          "raises": []
+        },
+        {
+          "name": "load_translations",
+          "async": false,
+          "params": [
+            {"name": "path", "type": "str | dict[str, Any]"},
+            {"name": "locale", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M18",
+      "name": "PermissionManager",
+      "package": "core_infrastructure.permission",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Always ask PermissionManager before accessing protected resources. Treat human users, AI agents, and teams uniformly as principals with a type attribute. NEVER inherit all user permissions to agents automatically."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.permission.adapters.casbin_permission_adapter.CasbinPermissionAdapter",
+        "test": "core_infrastructure.permission.adapters.in_memory_permission_adapter.InMemoryPermissionAdapter"
+      },
+      "types": {
+        "PrincipalType": "Literal[\"human\",\"agent\",\"team\"]",
+        "Action": "Literal[\"read\",\"write\",\"create\",\"delete\",\"invoke\",\"delegate\"]"
+      },
+      "methods": [
+        {
+          "name": "check_permission",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "principal_id", "type": "str", "keyword_only": true},
+            {"name": "principal_type", "type": "PrincipalType", "keyword_only": true},
+            {"name": "resource_type", "type": "str", "keyword_only": true},
+            {"name": "resource_id", "type": "str", "keyword_only": true},
+            {"name": "action", "type": "Action", "keyword_only": true},
+            {"name": "context", "type": "Mapping[str, Any] | None", "default": "None", "keyword_only": true}
+          ],
+          "returns": {"type": "PermissionDecision"},
+          "raises": [{"type": "ValidationError", "when": "invalid principal_type or required fields empty"}]
+        },
+        {
+          "name": "check_delegation",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "delegator_id", "type": "str", "keyword_only": true},
+            {"name": "delegate_id", "type": "str", "keyword_only": true},
+            {"name": "delegate_type", "type": "PrincipalType", "keyword_only": true},
+            {"name": "resource_type", "type": "str", "keyword_only": true},
+            {"name": "resource_id", "type": "str", "keyword_only": true},
+            {"name": "allowed_actions", "type": "list[Action]", "keyword_only": true},
+            {"name": "ttl_seconds", "type": "int", "keyword_only": true},
+            {"name": "purpose", "type": "str", "keyword_only": true},
+            {"name": "context", "type": "Mapping[str, Any] | None", "default": "None", "keyword_only": true}
+          ],
+          "returns": {"type": "PermissionDecision"},
+          "raises": [{"type": "ValidationError", "when": "invalid ttl_seconds or required fields empty"}]
+        },
+        {
+          "name": "list_effective_permissions",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "principal_id", "type": "str", "keyword_only": true},
+            {"name": "principal_type", "type": "PrincipalType", "keyword_only": true},
+            {"name": "resource_type", "type": "str | None", "default": "None", "keyword_only": true},
+            {"name": "resource_id", "type": "str | None", "default": "None", "keyword_only": true}
+          ],
+          "returns": {"type": "list[Mapping[str, Any]]"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M19",
+      "name": "LicenceManager",
+      "package": "core_infrastructure.licence",
+      "dependencies": ["ConfigManager", "SecretManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Use LicenceManager to determine which features exist for a tenant. This manager validates cryptographically signed licence documents and exposes feature availability as simple flags. It does NOT decide who can use features.",
+        "Use LicenceManager to determine which features exist for a tenant. It does NOT decide who can use features — that is the PermissionManager's responsibility."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.licence.adapters.jwt_licence_adapter.JwtLicenceAdapter",
+        "test": "core_infrastructure.licence.adapters.in_memory_licence_adapter.InMemoryLicenceAdapter"
+      },
+      "methods": [
+        {
+          "name": "load_license_from_string",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "raw_license", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "LicenseInfo"},
+          "raises": [
+            {"type": "AuthError", "when": "signature invalid or claims tampered"},
+            {"type": "ValidationError", "when": "licence JSON malformed"}
+          ]
+        },
+        {
+          "name": "load_license_from_file",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "path", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "LicenseInfo"},
+          "raises": [
+            {"type": "AuthError", "when": "signature invalid"},
+            {"type": "PermanentError", "when": "file cannot be read"}
+          ]
+        },
+        {
+          "name": "get_license",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "LicenseInfo | None", "notes": "None if expired past grace period or revoked"},
+          "raises": []
+        },
+        {
+          "name": "is_feature_enabled",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true},
+            {"name": "feature_key", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "bool"},
+          "raises": []
+        },
+        {
+          "name": "list_enabled_features",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "Mapping[str, bool]"},
+          "raises": []
+        },
+        {
+          "name": "revoke_license",
+          "async": true,
+          "params": [
+            {"name": "tenant_id", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    },
+    {
+      "id": "M20",
+      "name": "UpdateManager",
+      "package": "core_infrastructure.update",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "Use UpdateManager to discover and apply desktop app updates. Always verify signatures and hashes before installing. Never install unverified artifacts.",
+        "Always verify signatures and hashes before installing. Never install unverified artifacts. Use rollback() to recover from failed updates."
+      ],
+      "adapter_imports": {
+        "production": "core_infrastructure.update.adapters.http_update_adapter.HttpUpdateAdapter",
+        "test": "core_infrastructure.update.adapters.in_memory_update_adapter.InMemoryUpdateAdapter"
+      },
+      "types": {
+        "Channel": "Literal[\"stable\",\"beta\",\"canary\"]"
+      },
+      "methods": [
+        {
+          "name": "get_current_version",
+          "async": true,
+          "params": [
+            {"name": "app_id", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "str", "notes": "SemVer"},
+          "raises": []
+        },
+        {
+          "name": "check_for_updates",
+          "async": true,
+          "params": [
+            {"name": "app_id", "type": "str", "keyword_only": true},
+            {"name": "channel", "type": "Channel", "default": "\"stable\"", "keyword_only": true}
+          ],
+          "returns": {"type": "AvailableRelease | None", "notes": "None if current is up-to-date"},
+          "raises": [{"type": "TransientError", "when": "remote endpoint unreachable"}]
+        },
+        {
+          "name": "download_update",
+          "async": true,
+          "params": [
+            {"name": "app_id", "type": "str", "keyword_only": true},
+            {"name": "release", "type": "AvailableRelease", "keyword_only": true}
+          ],
+          "returns": {"type": "UpdateArtifact", "notes": "SHA-256 + Ed25519 verified"},
+          "raises": [
+            {"type": "AuthError", "when": "SHA-256 hash or Ed25519 signature does not match"},
+            {"type": "PermanentError", "when": "no artifact matches current platform"}
+          ]
+        },
+        {
+          "name": "apply_update",
+          "async": true,
+          "params": [
+            {"name": "app_id", "type": "str", "keyword_only": true},
+            {"name": "artifact", "type": "UpdateArtifact", "keyword_only": true}
+          ],
+          "returns": {"type": "UpdateResult"},
+          "raises": []
+        },
+        {
+          "name": "rollback",
+          "async": true,
+          "params": [
+            {"name": "app_id", "type": "str", "keyword_only": true}
+          ],
+          "returns": {"type": "UpdateResult"},
+          "raises": [{"type": "PermanentError", "when": "no rollback state exists"}]
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ]
+    }
+  ]
+}

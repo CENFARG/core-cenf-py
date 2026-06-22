@@ -371,12 +371,18 @@ class TestJwtLicenceAdapter:
         ) is True
 
     @pytest.mark.asyncio
-    async def test_expired_jwt_past_grace_returns_none(
+    async def test_expired_jwt_past_grace_raises_auth_error(
         self,
         adapter,
         rsa_keys: tuple[str, str, str],
     ) -> None:
-        """Expired JWT past grace period: get_license() returns None."""
+        """Expired JWT past grace period: load_license_from_string raises AuthError.
+
+        With verify_exp=True and leeway=grace_period_days*86400, tokens expired
+        beyond the leeway window are rejected during JWT decode, BEFORE our
+        grace-period logic runs. This closes a security gap where expired
+        tokens were decoded with verify_exp=False.
+        """
         priv, _pub, _jwk = rsa_keys
         now = time.time()
         claims = {
@@ -389,9 +395,13 @@ class TestJwtLicenceAdapter:
         }
         token = _build_license_jwt(priv, claims)
 
-        await adapter.load_license_from_string(
-            tenant_id="t-old", raw_license=token
-        )
+        with pytest.raises(AuthError) as exc_info:
+            await adapter.load_license_from_string(
+                tenant_id="t-old", raw_license=token
+            )
+        assert "expired" in str(exc_info.value).lower()
+
+        # Verify the token was NOT cached (rejected before caching)
         cached = await adapter.get_license(tenant_id="t-old")
         assert cached is None
 

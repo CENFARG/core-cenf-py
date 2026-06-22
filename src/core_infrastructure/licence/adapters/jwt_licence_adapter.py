@@ -169,19 +169,23 @@ class JwtLicenceAdapter:
             )
 
         try:
-            # We decode with verify_exp=False so we can apply our own
-            # grace-period logic after extracting the claims. The signature
-            # is still verified; only expiry is deferred to our layer.
+            # Use leeway=grace_period_days*86400 so tokens within the
+            # grace period are still accepted by JWT expiry validation.
+            # The grace-period window acts as the leeway for clock skew
+            # and short-term expired licences. Past-leeway tokens are
+            # rejected at decode time (security improvement over verify_exp=False).
+            leeway_seconds = self._config.grace_period_days * 86400
             payload: dict[str, Any] = jose_jwt.decode(
                 raw_license,
                 public_key,
                 algorithms=["RS256"],
                 options={
                     "verify_signature": True,
-                    "verify_exp": False,
+                    "verify_exp": True,
                     "verify_iat": True,
                     "verify_nbf": True,
                     "require": ["iat"],
+                    "leeway": leeway_seconds,
                 },
             )
         except JoseJWTError as exc:

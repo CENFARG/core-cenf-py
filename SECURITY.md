@@ -2,10 +2,12 @@
 
 ## Supported Versions
 
-| Version | Supported |
-|---------|-----------|
-| 0.1.x (Semilla) | ✅ Active development |
-| < 0.1.0 | ❌ Pre-release |
+| Version | Status | Security Updates | EOL |
+|---------|--------|-----------------|-----|
+| 0.1.x (MVP) | ✅ Active | ✅ Critical + High | TBD |
+| < 0.1.0 | ❌ Pre-release | ❌ None | — |
+
+**Policy**: Only the latest minor version receives security patches. Major version 1.0.0 will define LTS windows.
 
 ## Reporting a Vulnerability
 

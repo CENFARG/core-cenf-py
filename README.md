@@ -1,6 +1,12 @@
 # core-cenf — CENF Core Infrastructure
 
-Core horizontal transversal infrastructure for all CENF developments. Implements 12 reusable managers following Clean Architecture / Hexagonal (Ports & Adapters) with full SDD + TDD methodology.
+[![CI/CD](https://github.com/CENFARG/core-cenf/actions/workflows/ci.yml/badge.svg)](https://github.com/CENFARG/core-cenf/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](CHANGELOG.md)
+[![Managers](https://img.shields.io/badge/managers-20-brightgreen.svg)](AGENTS_API.md)
+
+Core horizontal transversal infrastructure for all CENF developments. 20 reusable managers following Clean Architecture / Hexagonal (Ports & Adapters) with full SDD + TDD methodology. Designed for both human developers and AI coding agents.
 
 ## Managers
 

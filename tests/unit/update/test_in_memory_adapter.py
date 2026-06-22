@@ -24,6 +24,15 @@ import sys
 
 import pytest
 
+from core_infrastructure.common.errors import PermanentError
+from core_infrastructure.update.models import UpdateConfig
+from core_infrastructure.update.ports import (
+    AvailableRelease,
+    UpdateArtifact,
+    UpdateManager,
+    UpdateResult,
+)
+
 
 def _current_platform() -> str:
     """Return the current platform string matching adapter conventions."""
@@ -33,14 +42,6 @@ def _current_platform() -> str:
         return "macos"
     return "linux"
 
-from core_infrastructure.common.errors import PermanentError
-from core_infrastructure.update.models import UpdateConfig
-from core_infrastructure.update.ports import (
-    AvailableRelease,
-    UpdateArtifact,
-    UpdateManager,
-    UpdateResult,
-)
 
 # ── Concrete classes for Protocols ──────────────────────────────────────────
 

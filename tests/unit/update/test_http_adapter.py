@@ -36,6 +36,7 @@ from core_infrastructure.update.ports import (
     UpdateManager,
 )
 
+
 def _current_platform() -> str:
     """Return the current platform string matching adapter conventions."""
     if sys.platform == "win32":

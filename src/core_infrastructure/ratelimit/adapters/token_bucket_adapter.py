@@ -212,11 +212,12 @@ class TokenBucketAdapter:
         """Refill tokens based on elapsed time since last refill.
 
         Mutates the bucket state in-place. Tokens are capped at capacity.
+        Uses time.monotonic() to be immune to system clock jumps.
 
         Args:
             bucket: The bucket state to refill.
         """
-        now = _time.time()
+        now = _time.monotonic()
         elapsed = now - bucket.last_refill
         if elapsed > 0:
             bucket.tokens = min(bucket.tokens + bucket.refill_rate * elapsed, float(bucket.capacity))
@@ -274,7 +275,9 @@ class TokenBucketAdapter:
         """Remove timestamps outside the current sliding window.
 
         Mutates ``timestamps`` in-place, removing entries older than
-        ``_time.time() - window_size``.
+        ``_time.monotonic() - window_size``.
+
+        Uses time.monotonic() for immunity to system clock jumps.
 
         Args:
             timestamps: The list of request timestamps.
@@ -282,7 +285,7 @@ class TokenBucketAdapter:
             refill_rate: Request-equivalent rate per second.
         """
         window = self._window_size(capacity, refill_rate)
-        cutoff = _time.time() - window
+        cutoff = _time.monotonic() - window
         while timestamps and timestamps[0] < cutoff:
             timestamps.pop(0)
 
@@ -312,7 +315,7 @@ class TokenBucketAdapter:
                 if len(timestamps) >= cap:
                     return False
 
-                timestamps.append(_time.time())
+                timestamps.append(_time.monotonic())
                 self._redis_set_window(bucket_key, timestamps, cap, rate)
                 return True
 
@@ -358,6 +361,9 @@ class TokenBucketAdapter:
         For token bucket: calculates time to full at current refill rate.
         For sliding window: returns when the oldest timestamp expires from the window.
 
+        Converts internal monotonic-clock values back to wall-clock time at
+        the API boundary so callers receive meaningful Unix timestamps.
+
         Args:
             bucket_key: The bucket to query.
 
@@ -375,7 +381,11 @@ class TokenBucketAdapter:
                     return _time.time()
 
                 window = self._window_size(cap, rate)
-                return timestamps[0] + window
+                # Convert monotonic-based expiry to wall-clock
+                mono_now = _time.monotonic()
+                oldest_expiry_mono = timestamps[0] + window
+                remaining = max(0.0, oldest_expiry_mono - mono_now)
+                return _time.time() + remaining
 
             bucket = self._get_or_create_bucket(bucket_key)
             self._refill(bucket)

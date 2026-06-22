@@ -240,3 +240,52 @@ class TestConcurrentAccess:
         remaining = await adapter.get_remaining("concurrent-test")
 
         assert true_count + remaining == 200
+
+
+class TestMonotonicClock:
+    """Verify refill calculations use monotonic time, not wall-clock time.
+
+    When the system clock jumps forward (e.g., NTP correction, VM migration),
+    time.time() would cause the token bucket to incorrectly refill tokens
+    that were never earned. time.monotonic() is immune to clock jumps.
+    """
+
+    @pytest.mark.asyncio
+    async def test_refill_immune_to_wall_clock_jump(
+        self,
+        config: InMemoryConfigAdapter,
+        logger: InMemoryLoggerAdapter,
+        error_handler: CapturingErrorAdapter,
+    ) -> None:
+        """Tokens do NOT refill when wall-clock jumps forward but monotonic doesn't advance."""
+        adapter = TokenBucketAdapter(config, logger, error_handler)
+        adapter.configure_bucket("clock-jump", capacity=100, refill_rate=100.0)
+
+        # Exhaust all tokens
+        for _ in range(100):
+            assert await adapter.is_allowed("clock-jump") is True
+        assert await adapter.is_allowed("clock-jump") is False
+
+        # Simulate a wall-clock jump forward by 1 hour.
+        # If the adapter uses time.time(), it will see elapsed=3600s
+        # and refill tokens. With time.monotonic(), no refill occurs.
+        import time as _stdlib_time
+        from unittest.mock import patch
+
+        original_time = _stdlib_time.time
+        fake_future = original_time() + 3600.0
+
+        # Patch time.time in the adapter module to return a jumped value
+        with patch(
+            "core_infrastructure.ratelimit.adapters.token_bucket_adapter._time.time",
+            return_value=fake_future,
+        ):
+            remaining = await adapter.get_remaining("clock-jump")
+
+        # With monotonic clock: only real time elapsed during the test
+        # refills a tiny number of tokens (maybe 1-2 at 100 tokens/sec).
+        # With wall-clock: jump of 3600s would refill all 100 (VULNERABILITY).
+        assert remaining < 5, (
+            f"Expected ≤4 tokens (monotonic: only real ms elapsed), "
+            f"got {remaining} (wall-clock jump of 3600s would give 100)"
+        )

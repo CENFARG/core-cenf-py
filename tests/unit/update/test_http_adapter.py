@@ -20,6 +20,7 @@ Version: 0.1.0
 from __future__ import annotations
 
 import hashlib
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -34,6 +35,15 @@ from core_infrastructure.update.ports import (
     UpdateArtifact,
     UpdateManager,
 )
+
+def _current_platform() -> str:
+    """Return the current platform string matching adapter conventions."""
+    if sys.platform == "win32":
+        return "windows"
+    elif sys.platform == "darwin":
+        return "macos"
+    return "linux"
+
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -144,7 +154,7 @@ class TestCheckForUpdates:
             "artifacts": [
                 {
                     "url": "https://example.com/cenf-1.1.0.exe",
-                    "platform": "windows",
+                    "platform": _current_platform(),
                     "arch": "x64",
                     "kind": "installer",
                     "hash": "a" * 64,
@@ -265,7 +275,7 @@ class TestDownloadUpdate:
                     _ArtifactWrapper(
                         ArtifactMeta.from_dict({
                             "url": "https://example.com/cenf-1.1.0.exe",
-                            "platform": "windows",
+                            "platform": _current_platform(),
                             "arch": "x64",
                             "kind": "installer",
                             "hash": expected_hash,
@@ -310,7 +320,7 @@ class TestDownloadUpdate:
                     _ArtifactWrapper(
                         ArtifactMeta.from_dict({
                             "url": "https://example.com/cenf-1.1.0.exe",
-                            "platform": "windows",
+                            "platform": _current_platform(),
                             "arch": "x64",
                             "kind": "installer",
                             "hash": "b" * 64,  # wrong hash
@@ -356,7 +366,7 @@ class TestDownloadUpdate:
                     _ArtifactWrapper(
                         ArtifactMeta.from_dict({
                             "url": "https://example.com/cenf-1.1.0.exe",
-                            "platform": "windows",
+                            "platform": _current_platform(),
                             "arch": "x64",
                             "kind": "installer",
                             "hash": expected_hash,
@@ -407,7 +417,7 @@ class TestDownloadUpdate:
                     _ArtifactWrapper(
                         ArtifactMeta.from_dict({
                             "url": "https://example.com/cenf-1.1.0.exe",
-                            "platform": "windows",
+                            "platform": _current_platform(),
                             "arch": "x64",
                             "kind": "installer",
                             "hash": expected_hash,

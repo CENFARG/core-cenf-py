@@ -20,7 +20,18 @@ Version: 0.1.0
 
 from __future__ import annotations
 
+import sys
+
 import pytest
+
+
+def _current_platform() -> str:
+    """Return the current platform string matching adapter conventions."""
+    if sys.platform == "win32":
+        return "windows"
+    elif sys.platform == "darwin":
+        return "macos"
+    return "linux"
 
 from core_infrastructure.common.errors import PermanentError
 from core_infrastructure.update.models import UpdateConfig
@@ -139,7 +150,7 @@ def artifact_win() -> _Artifact:
     """A Windows installer artifact."""
     return _Artifact(
         url="https://example.com/cenf-1.1.0.exe",
-        platform="windows",
+        platform=_current_platform(),
         arch="x64",
         kind="installer",
         hash="a" * 64,
@@ -177,7 +188,7 @@ def release_v120_beta() -> _Release:
         artifacts=[
             _Artifact(
                 url="https://example.com/cenf-1.2.0-beta.exe",
-                platform="windows",
+                platform=_current_platform(),
                 arch="x64",
                 kind="installer",
                 hash="c" * 64,
@@ -271,7 +282,7 @@ class TestCheckForUpdates:
                 artifacts=[
                     _Artifact(
                         url="https://example.com/x.exe",
-                        platform="windows",
+                        platform=_current_platform(),
                         arch="x64",
                         kind="installer",
                         hash="d" * 64,
@@ -313,12 +324,11 @@ class TestDownloadUpdate:
         self, adapter, release_v110
     ) -> None:
         """download_update returns the artifact matching the current platform."""
-        # On Windows, it should return the windows artifact
         artifact = await adapter.download_update(
             app_id="test-app", release=release_v110
         )
         assert artifact.url() == "https://example.com/cenf-1.1.0.exe"
-        assert artifact.platform() == "windows"
+        assert artifact.platform() == _current_platform()
         assert artifact.arch() == "x64"
         assert artifact.kind() == "installer"
 
@@ -512,7 +522,7 @@ class TestProtocolCompliance:
         """_Artifact satisfies UpdateArtifact Protocol."""
         a = _Artifact(
             url="https://x.com",
-            platform="windows",
+            platform=_current_platform(),
             arch="x64",
             kind="installer",
             hash="a" * 64,

@@ -18,7 +18,7 @@ Version: 0.1.0
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,7 +26,6 @@ from core_infrastructure.external_api.adapters.resilient_http_adapter import (
     ResilientHTTPAdapter,
 )
 from core_infrastructure.external_api.models import (
-    ApiResponse,
     CircuitState,
 )
 from core_infrastructure.external_api.ports import ExternalAPIManager
@@ -278,13 +277,12 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_timeout_returns_error_response(self) -> None:
         """Timeout during request returns ApiResponse with status_code=0."""
-        import asyncio
 
         adapter = ResilientHTTPAdapter(default_timeout=10.0)
 
         mock_session = MagicMock()
         mock_ctx = MagicMock()
-        mock_ctx.__aenter__ = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_ctx.__aenter__ = AsyncMock(side_effect=TimeoutError())
         mock_session.request = MagicMock(return_value=mock_ctx)
 
         adapter._session = mock_session

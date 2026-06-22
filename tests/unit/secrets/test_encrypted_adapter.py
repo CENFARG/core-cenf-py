@@ -40,7 +40,6 @@ def temp_secret_file(fernet_key: bytes) -> str:
         "db_password": fernet.encrypt(b"secure-db-password").decode(),
         "api_key": fernet.encrypt(b"sk-test-api-key-123").decode(),
     }
-    import json
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as tmp:
         json.dump(data, tmp)

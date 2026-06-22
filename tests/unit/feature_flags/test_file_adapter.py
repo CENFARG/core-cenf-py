@@ -385,7 +385,7 @@ class TestFileFeatureFlagAdapterErrorHandling:
         err = CapturingErrorAdapter(cfg, logger, obs)
 
         # Init with directory-as-file — _reload_sync runs, catches IsADirectoryError
-        adapter = FileFeatureFlagAdapter(cfg, logger, err)
+        _ = FileFeatureFlagAdapter(cfg, logger, err)
 
         # error_handler.report() should have been called — check ERROR-level logs
         logs = logger.get_logs()

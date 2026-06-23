@@ -61,8 +61,9 @@ postgres = [
 s3 = ["aioboto3>=14.0"]
 gcs = ["gcloud-aio-storage>=9.0"]
 azure = ["azure-storage-blob>=12.0"]
+nats = ["nats-py>=2.0"]
 all = [
-    "core-cenf[sqlalchemy,postgres,s3,gcs,azure,saq]",
+    "core-cenf[sqlalchemy,postgres,s3,gcs,azure,saq,nats]",
 ]
 
 [build-system]
@@ -135,6 +136,8 @@ module = [
     "saq.*",
     "aiofiles",
     "casbin",
+    "nats",
+    "nats.*",
 ]
 ignore_missing_imports = true
 

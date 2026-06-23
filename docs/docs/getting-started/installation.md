@@ -20,14 +20,14 @@ How to install core-cenf in your Python project.
 The primary distribution channel is direct from the repository:
 
 ```bash
-pip install git+https://github.com/CENFARG/core-cenf.git
+pip install git+https://github.com/CENFARG/core-cenf-py.git
 ```
 
 To pin a specific version or branch:
 
 ```bash
-pip install git+https://github.com/CENFARG/core-cenf.git@v0.1.0
-pip install git+https://github.com/CENFARG/core-cenf.git@main
+pip install git+https://github.com/CENFARG/core-cenf-py.git@v0.1.0
+pip install git+https://github.com/CENFARG/core-cenf-py.git@main
 ```
 
 ## Install from Local Clone
@@ -35,7 +35,7 @@ pip install git+https://github.com/CENFARG/core-cenf.git@main
 For development, clone and install in editable mode with all dev dependencies:
 
 ```bash
-git clone https://github.com/CENFARG/core-cenf.git
+git clone https://github.com/CENFARG/core-cenf-py.git
 cd core-cenf
 
 # Create virtual environment

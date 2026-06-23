@@ -1,6 +1,6 @@
-# core-cenf — CENF Core Infrastructure
+# core-cenf-py — CENF Core Infrastructure (Python)
 
-[![CI/CD](https://github.com/CENFARG/core-cenf/actions/workflows/ci.yml/badge.svg)](https://github.com/CENFARG/core-cenf/actions/workflows/ci.yml)
+[![CI/CD](https://github.com/CENFARG/core-cenf-py/actions/workflows/ci.yml/badge.svg)](https://github.com/CENFARG/core-cenf-py/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](CHANGELOG.md)

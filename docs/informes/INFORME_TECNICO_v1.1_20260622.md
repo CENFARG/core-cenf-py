@@ -220,7 +220,7 @@ SBOM:       CycloneDX                         → generado por build
 | CI/CD | `.github/workflows/` | ci.yml + publish.yml |
 | CodeGraph | `.codegraph/` | 3,279 nodos, 5,961 edges |
 | MASTER Spec | `C:\Dropbox\DOC.RECA\03-CENF\...\MASTER_OpenSpec_Core_Infra_SOTA_2026.md` | v1.2.0, 20 managers |
-| Repositorio | `github.com/CENFARG/core-cenf` | Privado, 70+ commits |
+| Repositorio | `github.com/CENFARG/core-cenf-py` | Privado, 70+ commits |
 
 ---
 

@@ -1,5 +1,5 @@
 [project]
-name = "core-cenf"
+name = "core-cenf-py"
 version = "0.1.0"
 description = "CENF Core Infrastructure — Horizontal Transversal Managers for Python 3.12+"
 readme = "README.md"

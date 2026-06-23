@@ -1,6 +1,6 @@
-# AGENTS.md — Core-CENF Agent Instructions
+# AGENTS.md — Core-CENF Python Agent Instructions
 
-> **For AI coding agents**: Read this file FIRST before writing any code that uses core-cenf.
+> **For AI coding agents**: Read this FIRST before writing any code that uses core-cenf-py.
 > Total read time: ~90 seconds. Total managers: 21. All infrastructure, zero domain logic.
 
 ---
@@ -208,13 +208,13 @@ Pipeline: `.github/workflows/ci.yml`
 
 ```bash
 # Option 1: Direct git install (recommended)
-pip install git+https://github.com/CENFARG/core-cenf.git
+pip install git+https://github.com/CENFARG/core-cenf-py.git
 
 # Option 2: With authentication token (private repo, CI/CD)
-pip install git+https://{GITHUB_TOKEN}@github.com/CENFARG/core-cenf.git
+pip install git+https://{GITHUB_TOKEN}@github.com/CENFARG/core-cenf-py.git
 
 # Option 3: Local development
-git clone https://github.com/CENFARG/core-cenf.git
+git clone https://github.com/CENFARG/core-cenf-py.git
 cd core-cenf
 uv venv .venv && uv pip install -e ".[dev]"
 ```

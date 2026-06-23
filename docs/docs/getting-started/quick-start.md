@@ -309,7 +309,7 @@ Process exits with code `0`.
   architectural pattern behind every manager.
 - Read **[Context Propagation](./core-concepts/context-propagation)** to learn how
   correlation IDs flow implicitly across async boundaries.
-- Read the **[full demo source](https://github.com/CENFARG/core-cenf/blob/main/examples/full_demo.py)**
+- Read the **[full demo source](https://github.com/CENFARG/core-cenf-py/blob/main/examples/full_demo.py)**
   for the complete 900-line integration example.
 - Dive into individual **[Managers](../managers/config-manager)** for deep-dive
   documentation on each one.

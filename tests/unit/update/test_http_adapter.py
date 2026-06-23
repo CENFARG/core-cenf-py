@@ -260,8 +260,8 @@ class TestDownloadUpdate:
         artifact_data = b"fake-binary-content"
         expected_hash = _compute_sha256(artifact_data)
 
-        from core_infrastructure.update.adapters.http_update_adapter import (
-            _ArtifactWrapper,
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
         )
 
         class _ReleaseWrapper:
@@ -305,8 +305,8 @@ class TestDownloadUpdate:
         self, adapter, mock_api
     ) -> None:
         """download_update raises AuthError when SHA-256 hash does not match."""
-        from core_infrastructure.update.adapters.http_update_adapter import (
-            _ArtifactWrapper,
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
         )
 
         class _ReleaseWrapper:
@@ -351,8 +351,8 @@ class TestDownloadUpdate:
         expected_hash = _compute_sha256(artifact_data)
         signature = _sign_data(priv_key, artifact_data)
 
-        from core_infrastructure.update.adapters.http_update_adapter import (
-            _ArtifactWrapper,
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
         )
 
         class _ReleaseWrapper:
@@ -402,8 +402,8 @@ class TestDownloadUpdate:
         expected_hash = _compute_sha256(artifact_data)
         tampered_sig = _sign_data(wrong_priv, artifact_data)
 
-        from core_infrastructure.update.adapters.http_update_adapter import (
-            _ArtifactWrapper,
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
         )
 
         class _ReleaseWrapper:

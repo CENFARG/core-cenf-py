@@ -81,3 +81,15 @@ phase_rules:
   apply: Implement tasks following TDD — red-green-refactor per slice
   verify: Execute tests and prove implementation matches specs, design, and tasks
   archive: Archive completed changes by syncing delta specs
+
+archive:
+  changes:
+    - name: core-cenf-python-v1
+      archived_at: "2026-06-23"
+      artifacts:
+        - proposal.md
+        - design.md
+        - tasks.md
+      status: complete
+      description: "CENF Core Infrastructure — 21 horizontal transversal managers (Python 3.12+)"
+      version: v0.1.0

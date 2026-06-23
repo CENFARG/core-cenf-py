@@ -1,5 +1,5 @@
 # Core-CENF API Catalog — Agent Reference
-> For AI coding agents. Parseable in <5 seconds. 20 managers, 120+ methods.
+> For AI coding agents. Parseable in <5 seconds. 21 managers, 125+ methods.
 
 ## Quick Lookup
 | ID | Manager | Purpose | Key Method |
@@ -24,6 +24,7 @@
 | M18 | PermissionManager | RBAC+ABAC access control | `check_permission(...)` |
 | M19 | LicenceManager | Signed licence validation | `load_license_from_string(...)` |
 | M20 | UpdateManager | Desktop auto-update + rollback | `check_for_updates(...)` |
+| M21 | BusEventManager | Decoupled pub/sub messaging | `publish(event_type, payload)` |
 
 ---
 
@@ -546,6 +547,57 @@
 **Adapters**:
 - Production: `HttpUpdateAdapter` (`core_infrastructure.update.adapters.http_update_adapter.HttpUpdateAdapter`)
 - Test: `InMemoryUpdateAdapter` (`core_infrastructure.update.adapters.in_memory_update_adapter.InMemoryUpdateAdapter`)
+
+---
+
+## M21 — BusEventManager (src/core_infrastructure/bus_event)
+**Dependencies**: ConfigManager, LoggerManager, ObservabilityManager
+**Protocol**: `core_infrastructure.bus_event.ports.BusEventManager`
+**Models**: `core_infrastructure.bus_event.models.EventEnvelope`, `core_infrastructure.bus_event.models.BusConfig`, `core_infrastructure.bus_event.models.CloudEvent`
+
+> @ai-directive: publish() is fire-and-forget from the publisher's perspective. Subscriptions are exact-match only (no wildcards for MVP).
+
+> @ai-directive: When adding a new adapter, implement ALL methods. The MemoryBusAdapter is the reference implementation.
+
+| Method | Signature | Returns | Raises | Notes |
+|--------|-----------|---------|--------|-------|
+| publish | `(event_type: str, payload: dict[str, Any], metadata: dict[str, Any] \| None = None) -> str` (async) | `str` | `ValidationError` | Fire-and-forget; returns UUID4 event_id; payload must be JSON-serializable |
+| subscribe | `(event_type: str, handler: Any, subscriber_id: str) -> str` (async) | `str` | — | Handler receives `EventEnvelope`; returns unique subscription_id; exact-match routing |
+| unsubscribe | `(subscription_id: str) -> None` (async) | `None` | — | Idempotent — safe to call on unknown IDs |
+| list_subscriptions | `() -> list[dict[str, Any]]` (async) | `list[dict[str, Any]]` | — | Each entry: `subscription_id`, `event_type`, `subscriber_id` |
+| get_json_schema | `() -> dict[str, Any]` (static) | `dict[str, Any]` | — | JSON Schema of BusConfig; AX discovery |
+
+**Adapters**:
+- Dev/Test: `MemoryBusAdapter` (`core_infrastructure.bus_event.adapters.memory_bus_adapter.MemoryBusAdapter`) — in-process asyncio.Queue per event_type
+- Production: `RedisBusAdapter` (`core_infrastructure.bus_event.adapters.redis_bus_adapter.RedisBusAdapter`) — Redis Pub/Sub with auto-reconnection
+- Production: `NatsBusAdapter` (`core_infrastructure.bus_event.adapters.nats_bus_adapter.NatsBusAdapter`) — NATS JetStream with CloudEvents 1.0 + durable consumers
+
+### Models
+
+#### EventEnvelope
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| event_id | `str` (1–64) | required | UUID4 |
+| event_type | `str` (1–256) | required | Routing key (e.g. `"user.created"`) |
+| payload | `dict[str, Any]` | `{}` | JSON-serializable event data |
+| metadata | `dict[str, Any] \| None` | `None` | Optional trace metadata |
+
+#### BusConfig
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| max_queue_size | `int` (1–10000) | `1000` | Max pending events per event_type before publish blocks |
+| default_handler_timeout | `float` (> 0.0) | `30.0` | Max seconds a handler can run before cancellation |
+
+#### CloudEvent
+| Field | Type | Default | Notes |
+|-------|------|---------|-------|
+| specversion | `str` | required | `"1.0"` |
+| type | `str` (1–256) | required | Event type |
+| source | `str` | required | Event source identifier |
+| id | `str` (1–64) | required | Unique event ID |
+| time | `str \| None` | `None` | RFC 3339 UTC timestamp |
+| datacontenttype | `str` | `"application/json"` | Content type of data |
+| data | `dict[str, Any]` | `{}` | Event payload |
 
 ---
 

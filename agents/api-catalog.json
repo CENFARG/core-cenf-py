@@ -1437,6 +1437,96 @@
           "raises": []
         }
       ]
+    },
+    {
+      "id": "M21",
+      "name": "BusEventManager",
+      "package": "core_infrastructure.bus_event",
+      "dependencies": ["ConfigManager", "LoggerManager", "ObservabilityManager"],
+      "directives": [
+        "publish() is fire-and-forget from the publisher's perspective. Subscriptions are exact-match only (no wildcards for MVP).",
+        "When adding a new adapter, implement ALL methods. The MemoryBusAdapter is the reference implementation."
+      ],
+      "adapter_imports": {
+        "development": "core_infrastructure.bus_event.adapters.memory_bus_adapter.MemoryBusAdapter",
+        "production_redis": "core_infrastructure.bus_event.adapters.redis_bus_adapter.RedisBusAdapter",
+        "production_nats": "core_infrastructure.bus_event.adapters.nats_bus_adapter.NatsBusAdapter",
+        "test": "core_infrastructure.bus_event.adapters.memory_bus_adapter.MemoryBusAdapter"
+      },
+      "methods": [
+        {
+          "name": "publish",
+          "async": true,
+          "params": [
+            {"name": "event_type", "type": "str"},
+            {"name": "payload", "type": "dict[str, Any]"},
+            {"name": "metadata", "type": "dict[str, Any] | None", "default": "None"}
+          ],
+          "returns": {"type": "str", "notes": "UUID4 event_id; fire-and-forget"},
+          "raises": [{"type": "ValidationError", "when": "payload is not JSON-serializable"}]
+        },
+        {
+          "name": "subscribe",
+          "async": true,
+          "params": [
+            {"name": "event_type", "type": "str"},
+            {"name": "handler", "type": "Any", "notes": "async callable receiving EventEnvelope"},
+            {"name": "subscriber_id", "type": "str"}
+          ],
+          "returns": {"type": "str", "notes": "unique subscription_id"},
+          "raises": []
+        },
+        {
+          "name": "unsubscribe",
+          "async": true,
+          "params": [
+            {"name": "subscription_id", "type": "str"}
+          ],
+          "returns": {"type": "None"},
+          "raises": []
+        },
+        {
+          "name": "list_subscriptions",
+          "async": true,
+          "params": [],
+          "returns": {"type": "list[dict[str, Any]]", "notes": "each entry: subscription_id, event_type, subscriber_id"},
+          "raises": []
+        },
+        {
+          "name": "get_json_schema",
+          "async": false,
+          "params": [],
+          "returns": {"type": "dict[str, Any]"},
+          "raises": []
+        }
+      ],
+      "models": {
+        "EventEnvelope": {
+          "fields": [
+            {"name": "event_id", "type": "str", "required": true, "constraints": "min_length=1, max_length=64"},
+            {"name": "event_type", "type": "str", "required": true, "constraints": "min_length=1, max_length=256"},
+            {"name": "payload", "type": "dict[str, Any]", "required": false, "default": "{}"},
+            {"name": "metadata", "type": "dict[str, Any] | None", "required": false, "default": "None"}
+          ]
+        },
+        "BusConfig": {
+          "fields": [
+            {"name": "max_queue_size", "type": "int", "required": false, "default": "1000", "constraints": "ge=1, le=10000"},
+            {"name": "default_handler_timeout", "type": "float", "required": false, "default": "30.0", "constraints": "gt=0.0"}
+          ]
+        },
+        "CloudEvent": {
+          "fields": [
+            {"name": "specversion", "type": "str", "required": true, "constraints": "min_length=1"},
+            {"name": "type", "type": "str", "required": true, "constraints": "min_length=1, max_length=256"},
+            {"name": "source", "type": "str", "required": true, "constraints": "min_length=1"},
+            {"name": "id", "type": "str", "required": true, "constraints": "min_length=1, max_length=64"},
+            {"name": "time", "type": "str | None", "required": false, "default": "None"},
+            {"name": "datacontenttype", "type": "str", "required": false, "default": "\"application/json\""},
+            {"name": "data", "type": "dict[str, Any]", "required": false, "default": "{}"}
+          ]
+        }
+      }
     }
   ]
 }

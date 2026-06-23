@@ -52,6 +52,7 @@ const sidebars: SidebarsConfig = {
         'managers/permission-manager',
         'managers/licence-manager',
         'managers/update-manager',
+        'managers/bus-event-manager',
       ],
     },
     {

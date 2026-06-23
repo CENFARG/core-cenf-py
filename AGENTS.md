@@ -1,13 +1,13 @@
 # AGENTS.md — Core-CENF Agent Instructions
 
 > **For AI coding agents**: Read this file FIRST before writing any code that uses core-cenf.
-> Total read time: ~90 seconds. Total managers: 16. All infrastructure, zero domain logic.
+> Total read time: ~90 seconds. Total managers: 21. All infrastructure, zero domain logic.
 
 ---
 
 ## What is core-cenf?
 
-A reusable infrastructure library for Python 3.12+ providing 16 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
+A reusable infrastructure library for Python 3.12+ providing 21 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
 
 ## Golden Rule
 
@@ -25,7 +25,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 
 ---
 
-## The 16 Managers — Quick Reference
+## The 21 Managers — Quick Reference
 
 | # | Manager | What it does | Key method | Test adapter |
 |---|---------|-------------|------------|-------------|
@@ -45,6 +45,11 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 | M14 | **DynamicPromptingManager** | Conditional prompt assembly | `assemble(base, blocks, ctx)` | (use real adapter) |
 | M15 | **AlertManager** | Slack/Discord/Email alerts | `send_alert(level, title, msg)` | (use real adapter) |
 | M16 | **RateLimiterManager** | Token bucket rate limiting | `is_allowed(bucket_key)` | `InMemoryRateLimitAdapter` |
+| M17 | **I18nManager** | Multi-language translations | `t(key, **params)` | `InMemoryI18nAdapter` |
+| M18 | **PermissionManager** | RBAC+ABAC access control | `check_permission(...)` | `InMemoryPermissionAdapter` |
+| M19 | **LicenceManager** | Signed licence validation | `load_license_from_string(...)` | `InMemoryLicenceAdapter` |
+| M20 | **UpdateManager** | Desktop auto-update + rollback | `check_for_updates(...)` | `InMemoryUpdateAdapter` |
+| M21 | **BusEventManager** | Decoupled pub/sub messaging | `publish(event_type, payload)` | `MemoryBusAdapter` |
 
 ---
 
@@ -97,6 +102,7 @@ Every manager Protocol includes `@ai-directive` annotations. Here are the critic
 | **DynamicPromptingManager** | Conditions are dict-based equality. No CEL parser needed for MVP. |
 | **AlertManager** | Fire-and-forget. Never block main flow if alert dispatch fails. |
 | **RateLimiterManager** | Use `is_allowed()` before any rate-limited operation. |
+| **BusEventManager** | Usar BusEventManager para comunicación desacoplada entre componentes. publish() is fire-and-forget. Subscriptions are exact-match only (no wildcards for MVP). |
 
 ---
 
@@ -194,7 +200,7 @@ Pipeline: `.github/workflows/ci.yml`
 | `sbom.xml` | Generated SBOM (CycloneDX) |
 | `migrations/` | Alembic database migrations |
 | `.codegraph/` | CodeGraph knowledge graph (local, regenerated with `codegraph index`) |
-| `examples/full_demo.py` | Golden path: all 20 managers working together |
+| `examples/full_demo.py` | Golden path: all 21 managers working together |
 
 ---
 

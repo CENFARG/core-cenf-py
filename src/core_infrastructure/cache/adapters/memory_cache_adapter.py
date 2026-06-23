@@ -71,9 +71,9 @@ class MemoryCacheAdapter:
         self._misses: int = 0
 
         # Apply error handler decorator to public methods
-        self.get = self._error_handler.handle_errors()(self.get)
-        self.set = self._error_handler.handle_errors()(self.set)
-        self.delete = self._error_handler.handle_errors()(self.delete)
+        self.get = self._error_handler.handle_errors()(self.get)  # type: ignore[method-assign]
+        self.set = self._error_handler.handle_errors()(self.set)  # type: ignore[method-assign]
+        self.delete = self._error_handler.handle_errors()(self.delete)  # type: ignore[method-assign]
 
     # ------------------------------------------------------------------
     # Internal helpers

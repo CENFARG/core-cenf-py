@@ -183,7 +183,7 @@ class AzureStorageAdapter:
             url=url,
         )
 
-    async def download(self, bucket: str, key: str) -> bytes:
+    async def download(self, bucket: str, key: str) -> bytes:  # type: ignore[return]
         """Download an object's raw bytes from Azure Blob Storage.
 
         Args:
@@ -243,7 +243,7 @@ class AzureStorageAdapter:
                 exc, context={"source": "AzureStorageAdapter.exists", "bucket": bucket, "key": key})
             return False
 
-    async def generate_presigned_url(
+    async def generate_presigned_url(  # type: ignore[return]
         self,
         bucket: str,
         key: str,

@@ -88,9 +88,9 @@ class RedisCacheAdapter(CacheManager):
 
         # Apply error handler decorator to public methods if available
         if self._error_handler is not None:
-            self.get = self._error_handler.handle_errors()(self.get)
-            self.set = self._error_handler.handle_errors()(self.set)
-            self.delete = self._error_handler.handle_errors()(self.delete)
+            self.get = self._error_handler.handle_errors()(self.get)  # type: ignore[method-assign]
+            self.set = self._error_handler.handle_errors()(self.set)  # type: ignore[method-assign]
+            self.delete = self._error_handler.handle_errors()(self.delete)  # type: ignore[method-assign]
 
     # ------------------------------------------------------------------
     # Public API — CacheManager Protocol

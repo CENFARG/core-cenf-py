@@ -108,7 +108,7 @@ class S3StorageAdapter:
         """
         # Check for botocore ClientError with known codes
         try:
-            error_code = exc.response["Error"]["Code"]  # type: ignore[union-attr]
+            error_code = exc.response["Error"]["Code"]  # type: ignore[attr-defined, union-attr]
         except (AttributeError, KeyError, TypeError):
             # Not a ClientError or missing response structure → transient
             return TransientError
@@ -263,7 +263,7 @@ class S3StorageAdapter:
                 exc, context={"source": "S3StorageAdapter.exists", "bucket": bucket, "key": key})
             return False
 
-    async def generate_presigned_url(
+    async def generate_presigned_url(  # type: ignore[return]
         self,
         bucket: str,
         key: str,

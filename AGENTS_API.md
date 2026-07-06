@@ -1,5 +1,5 @@
 # Core-CENF API Catalog — Agent Reference
-> For AI coding agents. Parseable in <5 seconds. 21 managers, 125+ methods.
+> For AI coding agents. Parseable in <5 seconds. 22 managers, 140+ methods.
 
 ## Quick Lookup
 | ID | Manager | Purpose | Key Method |
@@ -25,6 +25,7 @@
 | M19 | LicenceManager | Signed licence validation | `load_license_from_string(...)` |
 | M20 | UpdateManager | Desktop auto-update + rollback | `check_for_updates(...)` |
 | M21 | BusEventManager | Decoupled pub/sub messaging | `publish(event_type, payload)` |
+| M22 | StateMachineManager | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus |
 
 ---
 
@@ -598,6 +599,33 @@
 | time | `str \| None` | `None` | RFC 3339 UTC timestamp |
 | datacontenttype | `str` | `"application/json"` | Content type of data |
 | data | `dict[str, Any]` | `{}` | Event payload |
+
+---
+
+## M22 — StateMachineManager (src/core_infrastructure/state_machine)
+**Dependencies**: LoggerManager, ObservabilityManager
+**Protocol**: `core_infrastructure.state_machine.ports.StateMachineManager`
+**Models**: `core_infrastructure.state_machine.models.StateDefinition`, `core_infrastructure.state_machine.models.TransitionRule`, `core_infrastructure.state_machine.models.TransitionEvent`, `core_infrastructure.state_machine.models.StateMachineConfig`, `core_infrastructure.state_machine.models.StateMachineStatus`
+
+> @ai-directive: StateMachineManager runs a dispatch→execute→validate loop. Strict mode raises ValidationError on invalid transitions. Error strategies: rollback (reverts to previous state), stop (terminates with errors), retry (retries same handler — protected by max_iterations).
+
+| Method | Signature | Returns | Raises | Notes |
+|--------|-----------|---------|--------|-------|
+| register_state | `(state: StateT, definition: StateDefinition) -> None` | `None` | `ValidationError` | Duplicate state raises ValidationError |
+| register_transition | `(rule: TransitionRule) -> None` | `None` | `ValidationError` | from_state must exist |
+| register_handler | `(state: StateT, handler: Callable[[ContextT], StateT]) -> None` | `None` | `ValidationError` | State must be registered first |
+| get_handler | `(state: StateT) -> Callable[[ContextT], StateT] \| None` | handler \| None | — | None if no handler registered |
+| get_valid_transitions | `(state: StateT) -> list[TransitionRule]` | `list[TransitionRule]` | — | All valid transitions from state |
+| is_valid_transition | `(from_state: StateT, to_state: StateT) -> bool` | `bool` | — | True if transition exists |
+| validate_transition | `(from_state: StateT, to_state: StateT) -> None` | `None` | `ValidationError` | Raises if transition invalid |
+| run | `(ctx: ContextT, start_state: StateT \| None = None) -> StateMachineStatus` (async) | `StateMachineStatus` | — | Main loop: dispatch→handle→validate→repeat |
+| get_status | `() -> StateMachineStatus` | `StateMachineStatus` | — | Current state, counters, errors |
+| reset | `() -> None` | `None` | — | Returns to initial_state, clears counters |
+| register_lifecycle_hook | `(hook_type: Literal["on_enter", "on_exit", "on_error"], state: StateT, hook: Callable[[ContextT], None]) -> None` | `None` | — | Fire-and-forget hooks per state |
+
+**Adapters**:
+- Test: `InMemoryStateMachineAdapter` (`core_infrastructure.state_machine.adapters.in_memory_state_machine_adapter.InMemoryStateMachineAdapter`)
+- Production: `ProductionStateMachineAdapter` (`core_infrastructure.state_machine.adapters.production_state_machine_adapter.ProductionStateMachineAdapter`)
 
 ---
 

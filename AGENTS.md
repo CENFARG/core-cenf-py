@@ -7,7 +7,7 @@
 
 ## What is core-cenf?
 
-A reusable infrastructure library for Python 3.12+ providing 21 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
+A reusable infrastructure library for Python 3.12+ providing 22 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
 
 ## Golden Rule
 
@@ -25,7 +25,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 
 ---
 
-## The 21 Managers — Quick Reference
+## The 22 Managers — Quick Reference
 
 | # | Manager | What it does | Key method | Test adapter |
 |---|---------|-------------|------------|-------------|
@@ -50,6 +50,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 | M19 | **LicenceManager** | Signed licence validation | `load_license_from_string(...)` | `InMemoryLicenceAdapter` |
 | M20 | **UpdateManager** | Desktop auto-update + rollback | `check_for_updates(...)` | `InMemoryUpdateAdapter` |
 | M21 | **BusEventManager** | Decoupled pub/sub messaging | `publish(event_type, payload)` | `MemoryBusAdapter` |
+| M22 | **StateMachineManager** | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus | `InMemoryStateMachineAdapter` |
 
 ---
 

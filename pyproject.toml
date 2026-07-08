@@ -1,6 +1,6 @@
 [project]
 name = "core-cenf-py"
-version = "0.1.0"
+version = "0.1.1"
 description = "CENF Core Infrastructure — Horizontal Transversal Managers for Python 3.12+"
 readme = "README.md"
 license = {text = "MIT"}

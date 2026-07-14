@@ -54,6 +54,51 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 
 ---
 
+## Import Safety & Lazy Loading (MANDATORY)
+
+**`import core_infrastructure` NEVER crashes due to missing optional dependencies.**
+
+Optional adapters gracefully degrade to `None` when their dependencies are absent:
+
+```python
+from core_infrastructure.database import SQLAlchemyAdapter, MemoryDatabaseAdapter
+
+if SQLAlchemyAdapter is None:
+    # sqlalchemy not installed — use MemoryDatabaseAdapter for dev/testing
+    db = MemoryDatabaseAdapter(config, logger)
+else:
+    db = SQLAlchemyAdapter(config, logger)  # type: ignore[assignment]
+```
+
+### The Contract
+
+| Symbol | When it's `None` | Install to resolve |
+|--------|-------------------|-------------------|
+| `SQLAlchemyAdapter` | `sqlalchemy` not installed | `pip install "core-cenf[sqlalchemy]"` |
+| `LocalStorageAdapter` | `aiofiles` not installed | `pip install "core-cenf[local-storage]"` |
+| `RedisCacheAdapter` | `redis` not installed | `pip install "core-cenf[all]"` |
+| `S3StorageAdapter` | `aioboto3` not installed | `pip install "core-cenf[s3]"` |
+| `GcsStorageAdapter` | `gcloud` not installed | `pip install "core-cenf[gcs]"` |
+| `AzureStorageAdapter` | `azure-storage-blob` not installed | `pip install "core-cenf[azure]"` |
+| `JwtAuthAdapter` | `python-jose` not installed | `pip install "core-cenf[all]"` (core dep) |
+| `EncryptedSecretAdapter` | `cryptography` not installed | `pip install "core-cenf[all]"` (core dep) |
+| `ResilientHTTPAdapter` | `aiohttp` not installed | `pip install "core-cenf[all]"` (core dep) |
+| `OTelAdapter` | `opentelemetry` not installed | `pip install "core-cenf[all]"` (core dep) |
+| `CasbinPermissionAdapter` | `pycasbin` not installed | `pip install "core-cenf[all]"` (core dep) |
+
+**Rule**: ALWAYS check `is None` before using an optional adapter. Never assume it resolves.
+
+### How It Works
+
+core-cenf-py uses **two-layer lazy import protection**:
+
+1. **Root level** (`core_infrastructure/__init__.py`): all ~25 optional adapter imports are wrapped in `try/except ImportError: Adapter = None`
+2. **Sub-package level** (`database/__init__.py`, `filestorage/__init__.py`): same pattern, ensuring imports succeed even when only models/ports are needed
+
+This means **every manager Protocol, model, and in-memory test adapter** is always importable with zero optional dependencies. Only production adapters that need extra libraries degrade.
+
+---
+
 ## Bootstrap Pattern (ALWAYS use this)
 
 ```python
@@ -208,17 +253,38 @@ Pipeline: `.github/workflows/ci.yml`
 ## Installation (for CENF projects)
 
 ```bash
-# Option 1: Direct git install (recommended)
+# Option 1: Minimal install (M01-M05 + core + in-memory test adapters)
 pip install git+https://github.com/CENFARG/core-cenf-py.git
 
-# Option 2: With authentication token (private repo, CI/CD)
-pip install git+https://{GITHUB_TOKEN}@github.com/CENFARG/core-cenf-py.git
+# Option 2: With production database support
+pip install "core-cenf[sqlalchemy] @ git+https://github.com/CENFARG/core-cenf-py.git"
 
-# Option 3: Local development
+# Option 3: With local file storage
+pip install "core-cenf[local-storage] @ git+https://github.com/CENFARG/core-cenf-py.git"
+
+# Option 4: All optional extras
+pip install "core-cenf[all] @ git+https://github.com/CENFARG/core-cenf-py.git"
+
+# Option 5: Local development
 git clone https://github.com/CENFARG/core-cenf-py.git
 cd core-cenf
 uv venv .venv && uv pip install -e ".[dev]"
 ```
+
+### Available Optional Extras
+
+| Extra | What it installs | Enables |
+|-------|-----------------|---------|
+| `sqlalchemy` | SQLAlchemy 2.0+ | `SQLAlchemyAdapter` |
+| `local-storage` | aiofiles 24.0+ | `LocalStorageAdapter` |
+| `s3` | aioboto3 14.0+ | `S3StorageAdapter` |
+| `gcs` | gcloud-aio-storage 9.0+ | `GcsStorageAdapter` |
+| `azure` | azure-storage-blob 12.0+ | `AzureStorageAdapter` |
+| `saq` | SAQ 0.15+ | SAQ task queue adapter |
+| `postgres` | asyncpg + psycopg[binary] 3.2+ | PostgreSQL support |
+| `nats` | nats-py 2.0+ | NATS bus adapter |
+| `dev` | pytest, ruff, mypy, faker, etc. | Development & testing |
+| `all` | All optional extras combined | Full functionality |
 
 ---
 

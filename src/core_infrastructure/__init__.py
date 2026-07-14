@@ -22,10 +22,16 @@ Managers incluidos:
 - DynamicPromptingManager: Ensamblado condicional de system prompts
 - AlertManager: Despacho multi-canal de alertas (Slack/Discord/Email)
 
-Import strategy: Protocols and models are eagerly imported (zero optional deps).
-Adapters are imported with graceful fallback — if an optional dependency is
-missing, the adapter symbol is set to None. Use `hasattr(core_cenf, "AdapterName")`
-or check for None before using optional adapters.
+Import strategy (two-layer lazy protection):
+1. Root level: all optional adapter imports wrapped in try/except ImportError.
+2. Sub-package level (database/__init__.py, filestorage/__init__.py): same pattern,
+   ensuring the import chain never crashes before the root blocks execute.
+
+If an optional dependency is missing, the adapter symbol is set to None.
+Always check `is None` before using an optional adapter:
+    from core_infrastructure.database import SQLAlchemyAdapter
+    if SQLAlchemyAdapter is None:
+        ...handle gracefully...
 """
 
 # ---------------------------------------------------------------------------

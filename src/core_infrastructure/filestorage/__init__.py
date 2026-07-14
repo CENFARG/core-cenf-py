@@ -16,10 +16,20 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
-from core_infrastructure.filestorage.adapters.local_storage_adapter import LocalStorageAdapter
-from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
+# Safe imports — zero optional deps
 from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
 from core_infrastructure.filestorage.ports import FileStorageManager
+
+# Optional adapters — gracefully degrade if optional deps missing
+try:
+    from core_infrastructure.filestorage.adapters.local_storage_adapter import LocalStorageAdapter
+except ImportError:
+    LocalStorageAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from core_infrastructure.filestorage.adapters.memory_storage_adapter import MemoryStorageAdapter
+except ImportError:
+    MemoryStorageAdapter = None  # type: ignore[assignment,misc]
 
 __all__ = [
     "FileRef",

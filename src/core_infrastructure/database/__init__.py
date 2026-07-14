@@ -16,10 +16,20 @@ Author: CENF AI Team
 Version: 0.1.0
 """
 
-from core_infrastructure.database.adapters.memory_database_adapter import MemoryDatabaseAdapter
-from core_infrastructure.database.adapters.sqlalchemy_adapter import SQLAlchemyAdapter
+# Safe imports — zero optional deps
 from core_infrastructure.database.models import DatabaseConfig, PaginatedResult, RepositoryQuery
 from core_infrastructure.database.ports import DatabaseManager, GenericRepository, TransactionScope
+
+# Optional adapters — gracefully degrade if optional deps missing
+try:
+    from core_infrastructure.database.adapters.memory_database_adapter import MemoryDatabaseAdapter
+except ImportError:
+    MemoryDatabaseAdapter = None  # type: ignore[assignment,misc]
+
+try:
+    from core_infrastructure.database.adapters.sqlalchemy_adapter import SQLAlchemyAdapter
+except ImportError:
+    SQLAlchemyAdapter = None  # type: ignore[assignment,misc]
 
 __all__ = [
     "DatabaseConfig",

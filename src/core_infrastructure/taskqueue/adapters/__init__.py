@@ -7,6 +7,9 @@
 from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
     MemoryTaskQueueAdapter,
 )
-from core_infrastructure.taskqueue.adapters.saq_adapter import SaQAdapter
+try:
+    from core_infrastructure.taskqueue.adapters.saq_adapter import SaQAdapter
+except ImportError:
+    SaQAdapter = None  # type: ignore[assignment,misc]
 
 __all__ = ["MemoryTaskQueueAdapter", "SaQAdapter"]

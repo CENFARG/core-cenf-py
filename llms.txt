@@ -158,3 +158,13 @@ python -m pytest tests/ -q     # ALL green
 - `tests/conftest.py` — Test fixtures
 - `.github/workflows/ci.yml` — CI/CD pipeline
 - `.chats/decisions.yaml` — Strategic architecture decisions
+
+## Optional
+
+- [Full Manager Table](AGENTS.md#the-22-managers--quick-reference) — Complete reference with all 22 managers
+- [BootstrapOrchestrator](src/core_infrastructure/bootstrap.py) — Lifecycle management source
+- [Full Demo](examples/full_demo.py) — All 22 managers working together
+- [Error Taxonomy](src/core_infrastructure/common/errors.py) — All error types
+- [Import Safety Contract](AGENTS.md#import-safety--lazy-loading-mandatory) — Lazy adapter loading rules
+- [CI/CD Pipeline](.github/workflows/ci.yml) — GitHub Actions workflow
+- [OpenSpec Specs](openspec/specs/) — Detailed manager specifications

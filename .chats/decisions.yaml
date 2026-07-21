@@ -1,0 +1,357 @@
+# =============================================================================
+# CORE-CENF — Session Decisions Document
+# Source: ses_0c7e25afaffexypPBkMdaeHhMf (OpenCode deepseek-v4-flash-free)
+# Extracted: 2026-07-10 | Messages: ~43 (session after compaction)
+# Updated: 2026-07-10 — extracted via OpenCode SQLite + agent-transcript protocol
+# =============================================================================
+
+metadata:
+  session_id: "ses_0c7e25afaffexypPBkMdaeHhMf"
+  project: "core-cenf-py"
+  engram_project: "doc.reca"
+  extracted_by: "gentle-orchestrator (agent-transcript protocol)"
+  extraction_date: "2026-07-10"
+  last_verified: "2026-07-10"
+  source_file: "C:\\Users\\gonza\\AppData\\Local\\Temp\\opencode\\session_transcript.md"
+  source_lines: 268
+  models_used:
+    - id: "deepseek-v4-flash-free"
+      usage: "full session"
+  note: >
+    This YAML captures the strategic decisions from the July 10 2026 session
+    focused on core-cenf architecture direction. Key debate: modify existing
+    core-cenf-py/ts OR create separate runtimes. Pending resolution by
+    strategic-gestion-team agents.
+
+# =============================================================================
+# SECTION 1: VISION & PHILOSOPHY
+# =============================================================================
+
+vision:
+  purpose: >
+    Provide a reusable infrastructure foundation for all CENF projects following
+    Clean Architecture, Provider Pattern, and SDD+TDD methodology. Covers
+    Infrastructure Runtime (existing core-cenf), AI Runtime (Hermes, in design),
+    and Developer Platform (CI/CD, quality).
+
+  mission: >
+    Build three layers on the 80/20 rule: 80% mature OSS + 20% CENF-specific
+    wrapper/glue. Never reimplement what OSS already provides well. Apply
+    Provider Pattern across all layers.
+
+  philosophy:
+    - id: "PHIL_CENF_001"
+      statement: "80/20 Rule — 80% OSS, 20% CENF wrapper"
+      rationale: >
+        Reusing mature OSS (Keycloak, OPA, Vault, OpenFeature, LiteLLM, etc.)
+        avoids reinventing wheels and ensures security/maintenance from
+        large communities. CENF wraps only the integration layer.
+      verification_query: >
+        Check each manager: does it wrap an OSS provider or reimplement from scratch?
+        If reimplement → flag for OSS migration.
+      status: "active"
+
+    - id: "PHIL_CENF_002"
+      statement: "Provider Pattern: Manager → Provider Interface → OSS Provider → SDK"
+      rationale: >
+        Decouples business logic from implementation. Swap OSS providers
+        without changing manager code. Same pattern used across all layers.
+      verification_query: >
+        Does each Manager import from ports (Protocol) not adapters?
+        Should NOT import OSS SDKs directly.
+      status: "enforced"
+
+    - id: "PHIL_CENF_003"
+      statement: "AI Runtime must be agent-agnostic"
+      rationale: >
+        Hermes, OpenCode, Claude Code, Goose, OpenClaw, Antigravity all
+        consume the same services. No agent-specific code in the runtime.
+      verification_query: >
+        Does any AI Runtime module reference a specific agent by name
+        (hermes, opencode, claude)? Should be ZERO.
+      status: "active"
+
+    - id: "PHIL_CENF_004"
+      statement: "License policy: MIT > Apache 2.0 > MPL 2.0 > NO AGPL/GPL/SSPL"
+      rationale: >
+        AGPL/GPL/SSPL create legal risk for commercial products. MPL 2.0 OK.
+        MIT and Apache 2.0 preferred.
+      verification_query: >
+        Check ALL dependencies in pyproject.toml and package.json.
+        Any AGPL/GPL/SSPL → flag for replacement.
+      status: "enforced"
+
+    - id: "PHIL_CENF_005"
+      statement: "State Machines as general design rule"
+      rationale: >
+        Programs with >2 steps or >1 agent MUST be defined as state machines
+        first. Deterministic transitions enable testing, rollback, and
+        multi-agent communication.
+      verification_query: >
+        Does each multi-step flow have an explicit state diagram?
+      status: "active"
+
+    - id: "PHIL_CENF_006"
+      statement: "Security is non-negotiable OSS SOTA"
+      rationale: >
+        Auth, Authorization, Secrets, Policy — always use battle-tested OSS
+        (Keycloak, OPA, Vault). No room for custom implementations.
+      verification_query: >
+        Are auth/authz/secrets implemented via OSS adapters? If custom → FAIL.
+      status: "enforced"
+
+    - id: "PHIL_CENF_007"
+      statement: "Delegation mandatory for implementation"
+      rationale: >
+        SDD orchestrator never executes code. Must delegate to sub-agents
+        (sdd-apply, sdd-design, etc.) for implementation work.
+      status: "enforced"
+
+# =============================================================================
+# SECTION 2: STRATEGIC DECISIONS
+# =============================================================================
+
+strategic:
+  - id: "STRAT_001"
+    topic: "Architecture direction — modify core or create separate runtimes"
+    status: "PENDING"
+    description: >
+      Core strategic question: do we add Infrastructure Runtime capabilities
+      (Keycloak, OPA, Vault adapters) to existing core-cenf-py/ts, or do we
+      create a separate runtime layer (cenf-runtime / cenf-platform)?
+    options:
+      - option: "Modify existing core-cenf-py/ts"
+        tradeoff: "Expands current managers + providers. Single library = simpler dependency graph. Risk: bloat."
+      - option: "Create separate cenf-runtime"
+        tradeoff: "Clean separation. core-cenf stays lightweight. Risk: dependency complexity, two repos to maintain."
+      - option: "Create cenf-platform (superset)"
+        tradeoff: "Unified platform with core-cenf + runtime + dev tools. Risk: scope creep."
+    next_step: "Delegate to strategic-gestion-team for analysis considering yaml-agno, arca-sdk, arcaMCP, instaldorAgentico, amBotHs, grama"
+
+  - id: "STRAT_002"
+    topic: "AI Runtime Hermes — design as separate module"
+    status: "PENDING"
+    description: >
+      AI Runtime will serve ANY agent (agent-agnostic pattern). 12 managers
+      proposed: AgentOrchestration, ToolRegistry(MCP), ContextResolver,
+      PromptManager, MemoryVector(Qdrant), KnowledgeGraph, AIPolicy,
+      AIAudit, AISession, HumanReview, WorkflowManager, LLMGateway(LiteLLM).
+      Needs analysis of which to build vs delegate to OSS.
+    next_step: "Decision deferred until STRAT_001 resolves"
+
+  - id: "STRAT_003"
+    topic: "Dependency tiering strategy"
+    status: "DECIDED"
+    description: >
+      Dependencies classified into 3 tiers:
+      - Tier 1 (mandatory): Identity, Auth, Authorization, Secrets, Observability
+      - Tier 2 (value-add): Feature Flags, Cache, Event Bus, Rate Limiting
+      - Tier 3 (optional): Workflows, Search, Object Storage, Config Discovery
+    rationale: >
+      Avoids dependency bloat. Only Tier 1 is mandatory for all projects.
+      Tiers 2 and 3 are opt-in based on actual need.
+    verification_query: >
+      Can projects use core-cenf with ONLY Tier 1 dependencies?
+      If importing Tier 2/3 forces transitive deps → refactor.
+    status: "active"
+
+  - id: "STRAT_005"
+    topic: "4-Project Architecture — core-cenf separation"
+    status: "DECIDED"
+    description: >
+      Arquitectura dividida en 4 proyectos trabajados como monolito por el mismo equipo:
+      - core-cenf-py: infraestructura base Python (22 managers)
+      - core-cenf-ts: port TypeScript (19 managers)
+      - core-cenf-agents: infraestructura para sistemas agénticos
+      - core-cenf-tenant: multi-tenant (billing, rate limiting, authz)
+      Mismo equipo, mismos patrones, mismo CI/CD.
+    mitigation_rules:
+      - "RULE 1: Agents y Tenant dependen solo de PROTOCOLS (ports), nunca adapters"
+      - "RULE 2: No duplicar patrones — copiar de core-cenf-py, no reinventar"
+      - "RULE 3: core-cenf-tenant EXCLUSIVAMENTE multi-tenant, cero lógica de negocio"
+      - "RULE 4: Template de repo único para los 4 proyectos"
+      - "RULE 5: Mismo CI/CD pipeline en los 4"
+      - "RULE 6: Majors sincronizados, minors/patch independientes"
+      - "RULE 7: Documentación estándar para todo manager"
+    description: >
+      El equipo de gestión estratégica (fractal-validator, strategic-project-manager,
+      cost-governance-analyst, go-to-market-strategist, risk-compliance-officer,
+      product-market-fit-analyst) será quien analice y recomiende el camino
+      a seguir para core-cenf considerando productos activos.
+    next_step: "Delegate decisions.yaml to strategic-gestion-team agents"
+
+# =============================================================================
+# SECTION 3: TECHNICAL DECISIONS
+# =============================================================================
+
+technical:
+  - id: "TECH_001"
+    topic: "Core-CENF Mandate for new projects"
+    status: "enforced"
+    description: >
+      ALL new CENF projects MUST use core-cenf as infrastructure foundation.
+      Never write config loading, logging, error handling, caching from scratch.
+      Bootstrap via `pip install core-cenf` and BootstrapOrchestrator.
+    verification_query: >
+      Does each CENF project import from core_infrastructure for cross-cutting concerns?
+    scope: "ALL CENF projects"
+
+  - id: "TECH_002"
+    topic: "Python 3.12+ first, TypeScript as full port"
+    status: "active"
+    description: >
+      Python is primary implementation language. TypeScript is a full port
+      with identical API surfaces. Both maintain feature parity.
+
+  - id: "TECH_003"
+    topic: "agent-transcript for session extraction"
+    status: "active"
+    description: >
+      All agent sessions (OpenCode, Claude, Goose, Gemini) should be extracted
+      and analyzed using agent-transcript skill. Extract → analyze → decisions.yaml.
+    note: >
+      OpenCode sessions stored in SQLite at ~/.local/share/opencode/opencode.db.
+      Direct extraction from SQLite required as agent-transcript --from-storage
+      only indexes Claude/Gemini/Goose sessions, not OpenCode ones.
+
+  - id: "TECH_004"
+    topic: "Engram as persistent memory"
+    status: "enforced"
+    description: >
+      All decisions, bugs, discoveries, conventions saved to Engram proactively
+      (mem_save). End-of-session summaries mandatory (mem_session_summary).
+      Cross-session context recovery via mem_search.
+
+  - id: "TECH_005"
+    topic: "CodeGraph for codebase exploration"
+    status: "active"
+    description: >
+      Pre-indexed knowledge graph cuts ~58% tool calls during exploration.
+      Must be used before ANY task delegation that needs codebase context.
+
+  - id: "TECH_006"
+    topic: "SDD Modes of Operation"
+    status: "enforced"
+    description: >
+      Orchestrator operates in explicit modes:
+      - ASISTENTE: analysis only, no code, no delegation
+      - SDD: structured execution cycle
+      - MIXTO: alternating between conversation and execution
+
+# =============================================================================
+# SECTION 4: SCOPE & PROGRESS
+# =============================================================================
+
+scope:
+  mvp_progress:
+    core_cenf_py:
+      status: "v0.1.1 released — 22 managers, ~1500 tests"
+      note: "M22 StateMachineManager added. Version bumped, tagged on GitHub."
+    core_cenf_ts:
+      status: "v0.3.0 in progress (feature branch) — 21 packages"
+      note: "Slices 8-11 pending (Opossum, RedisRateLimiter, I18next, Unleash, etc.)"
+    research_documents:
+      status: "5 documents analyzed"
+      files:
+        - "chatgpt-multi-tenant-hermes-sota-2026-v01.md"
+        - "chatgpt-multi-tenant-hermes-sota-2026-v02.md"
+        - "perplexity-Infrastructure-Runtime-Research-(core-cenf).md"
+        - "perplexity-AI-Runtime-Research-(Hermes-Runtime).md"
+        - "perplexity-Developer-Platform-&-Engineering-Stack.md"
+
+  non_goals:
+    - "No reimplement OSS when stable SDKs exist (Tier 1 rule)"
+    - "No Gentle-specific platform — build abstraction layer (COS)"
+    - "No agent-specific code in AI Runtime"
+
+  deferred:
+    - "npm publish (blocked by @cenf scope registration — manual step)"
+    - "SDD sub-agents (blocked by qwen3.6-plus API credits)"
+    - "TS v0.3.0 slices 8-11 (paused pending strategic decision)"
+    - "OpenSearch integration (not needed until search volume justifies it)"
+    - "Consul integration (start with YAML + env vars)"
+
+# =============================================================================
+# SECTION 5: RISKS
+# =============================================================================
+
+risks:
+  - id: "RISK_001"
+    description: "Strategic decision paralysis — multiple architecture paths open"
+    severity: "high"
+    mitigation: "Delegate to strategic-gestion-team for analysis and recommendation"
+
+  - id: "RISK_002"
+    description: "Dependency bloat from adding too many OSS providers"
+    severity: "medium"
+    mitigation: "Tier system (Tier 1 mandatory, Tiers 2-3 opt-in)"
+
+  - id: "RISK_003"
+    description: "SDD sub-agents unavailable (API credits exhausted)"
+    severity: "medium"
+    mitigation: "Fallback to manual inline execution, limited scope"
+
+  - id: "RISK_004"
+    description: "npm publish blocked by @cenf scope registration"
+    severity: "low"
+    mitigation: "Manual step needed with GitHub/GitHub Packages"
+
+  - id: "RISK_005"
+    description: "OpenCode session data not indexable by agent-transcript --from-storage"
+    severity: "low"
+    mitigation: "Direct SQLite query fallback implemented (this session)"
+
+# =============================================================================
+# SECTION 6: CONTRADICTIONS & RESOLUTIONS
+# =============================================================================
+
+contradictions:
+  - id: "CONTRA_001"
+    conflict: "80/20 Rule vs. State Machines as mandatory design"
+    resolution: >
+      State machines are a DESIGN rule (how you structure logic), not an
+      implementation. They don't conflict with 80/20 — you CAN implement
+      state machines using OSS (e.g., XState in TS, transitions in Python).
+    status: "resolved"
+
+  - id: "CONTRA_002"
+    conflict: "Agent-agnostic AI Runtime vs. Hermes-specific designs in research docs"
+    resolution: >
+      Research docs proposed Hermes-specific managers. Decision: reframe as
+      agent-agnostic. Hermes is one consumer, not the target.
+    status: "resolved"
+
+# =============================================================================
+# SECTION 7: VERIFICATION QUERIES
+# =============================================================================
+
+verification_queries:
+  - id: "VQ001"
+    description: "Provider Pattern compliance"
+    command: "grep -r 'from core_infrastructure' src/ | grep -v 'ports' | grep -v 'protocol'"
+    expected: "ZERO results (managers should import from ports, not adapters)"
+    status: "pending"
+
+  - id: "VQ002"
+    description: "No AGPL/GPL/SSPL dependencies"
+    command: "pip-licenses --format=json | jq '.[] | select(.License | test(\"GPL|AGPL|SSPL\"))'"
+    expected: "ZERO results"
+    status: "pending"
+
+  - id: "VQ003"
+    description: "OpenCode session extraction working"
+    command: "Check that SQLite fallback for session extraction produces valid transcript"
+    expected: "Valid markdown transcript with user/assistant exchanges"
+    status: "verified"
+
+  - id: "VQ004"
+    description: "State machine defined for >2-step flows"
+    command: "Find files with state diagrams (mermaid or comments) for multi-step flows"
+    expected: "All >2-step flows have explicit state machine definition"
+    status: "pending"
+
+  - id: "VQ005"
+    description: "Delegation enforcement in orchestrator"
+    command: "Check gentle-orchestrator instructions for delegation rules"
+    expected: "4-file rule, multi-file write rule, PR rule, etc. all enforced"
+    status: "verified"

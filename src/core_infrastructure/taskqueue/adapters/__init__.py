@@ -4,9 +4,13 @@
 - SaQAdapter: Redis-backed SAQ adapter for production.
 """
 
-from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
-    MemoryTaskQueueAdapter,
-)
+try:
+    from core_infrastructure.taskqueue.adapters.memory_taskqueue_adapter import (
+        MemoryTaskQueueAdapter,
+    )
+except ImportError:
+    MemoryTaskQueueAdapter = None  # type: ignore[assignment,misc]
+
 try:
     from core_infrastructure.taskqueue.adapters.saq_adapter import SaQAdapter
 except ImportError:

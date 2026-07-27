@@ -1,13 +1,13 @@
 # AGENTS.md — Core-CENF Python Agent Instructions
 
 > **For AI coding agents**: Read this FIRST before writing any code that uses core-cenf-py.
-> Total read time: ~90 seconds. Total managers: 22. All infrastructure, zero domain logic.
+> Total read time: ~90 seconds. Total managers: 23. All infrastructure, zero domain logic.
 
 ---
 
 ## What is core-cenf?
 
-A reusable infrastructure library for Python 3.12+ providing 22 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
+A reusable infrastructure library for Python 3.12+ providing 23 horizontal transversal managers following Clean Architecture (Ports & Adapters). Every CENF program — backend APIs, AI agents, workflows, UIs — uses these managers for all cross-cutting concerns. You never write config loading, logging, error handling, or observability from scratch again.
 
 ## Golden Rule
 
@@ -25,7 +25,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 
 ---
 
-## The 22 Managers — Quick Reference
+## The 23 Managers — Quick Reference
 
 | # | Manager | What it does | Key method | Test adapter |
 |---|---------|-------------|------------|-------------|
@@ -51,6 +51,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 | M20 | **UpdateManager** | Desktop auto-update + rollback | `check_for_updates(...)` | `InMemoryUpdateAdapter` |
 | M21 | **BusEventManager** | Decoupled pub/sub messaging | `publish(event_type, payload)` | `MemoryBusAdapter` |
 | M22 | **StateMachineManager** | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus | `InMemoryStateMachineAdapter` |
+| M23 | **FileReaderPort** | Local filesystem reads | `read_file(path)` → str | `LocalFileReaderAdapter` |
 
 ---
 
@@ -85,6 +86,7 @@ else:
 | `ResilientHTTPAdapter` | `aiohttp` not installed | `pip install "core-cenf[all]"` (core dep) |
 | `OTelAdapter` | `opentelemetry` not installed | `pip install "core-cenf[all]"` (core dep) |
 | `CasbinPermissionAdapter` | `pycasbin` not installed | `pip install "core-cenf[all]"` (core dep) |
+| `LocalFileReaderAdapter` | `aiofiles` not installed | `pip install "core-cenf[local-storage]"` |
 
 **Rule**: ALWAYS check `is None` before using an optional adapter. Never assume it resolves.
 
@@ -149,6 +151,7 @@ Every manager Protocol includes `@ai-directive` annotations. Here are the critic
 | **AlertManager** | Fire-and-forget. Never block main flow if alert dispatch fails. |
 | **RateLimiterManager** | Use `is_allowed()` before any rate-limited operation. |
 | **BusEventManager** | Usar BusEventManager para comunicación desacoplada entre componentes. publish() is fire-and-forget. Subscriptions are exact-match only (no wildcards for MVP). |
+| **FileReaderPort** | All paths are resolved relative to the adapter's root directory. Never pass absolute user-supplied paths without validation. |
 
 ---
 

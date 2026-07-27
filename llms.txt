@@ -1,0 +1,170 @@
+# core-cenf-py
+
+> Python 3.12+ infrastructure library. 22 managers. Clean Architecture (Ports & Adapters). Zero domain logic.
+
+## Quick Install
+
+```bash
+pip install git+https://github.com/CENFARG/core-cenf-py.git
+pip install "core-cenf[sqlalchemy] @ git+https://github.com/CENFARG/core-cenf-py.git"
+pip install "core-cenf[all] @ git+https://github.com/CENFARG/core-cenf-py.git"
+```
+
+## Golden Rule
+
+Depend on Protocols, inject Adapters. Never import adapters in business logic.
+
+```python
+# CORRECT
+from core_infrastructure.config.ports import ConfigManager
+# WRONG
+from core_infrastructure.config.adapters.pydantic_config_adapter import PydanticConfigAdapter
+```
+
+## File Structure
+
+```
+src/core_infrastructure/
+├── bootstrap.py              BootstrapOrchestrator (lifecycle)
+├── alert/                    M15 — Slack/Discord/Email alerts
+├── auth/                     M06 — JWT validation (HS256)
+├── bus_event/                M21 — Pub/sub messaging (NATS, Redis, Memory)
+├── cache/                    M07 — KV cache with stampede protection
+├── common/                   Shared: contextvars, errors, base models
+├── config/                   M01 — Read-only YAML+env config
+├── database/                 M08 — SQLAlchemy 2.0+ async transactions
+├── dependency/               M13 — Lazy safe import resolution
+├── dynamic_prompting/        M14 — Conditional prompt assembly
+├── errors/                   M04 — Classify & report errors
+├── external_api/             M11 — Resilient HTTP with circuit breaker
+├── feature_flags/            M12 — Runtime toggles (YAML→Unleash)
+├── filestorage/              M09 — Multi-cloud blob storage (S3, GCS, Azure)
+├── i18n/                     M17 — Multi-language translations
+├── licence/                  M19 — Signed licence validation
+├── logger/                   M02 — Structured logging
+├── observability/            M05 — OTel RED metrics & tracing
+├── permission/               M18 — RBAC+ABAC access control
+├── ratelimit/                M16 — Token bucket rate limiting
+├── secrets/                  M03 — Encrypted credential storage
+├── state_machine/            M22 — State machine (guards, hooks, errors)
+├── taskqueue/                M10 — Async jobs with DLQ (SAQ)
+└── update/                   M20 — Desktop auto-update + rollback
+```
+
+## Manager Reference
+
+| # | Manager | Protocol | Test Adapter | Production Adapter |
+|---|---------|----------|-------------|-------------------|
+| M01 | ConfigManager | `config.ports.ConfigManager` | `InMemoryConfigAdapter` | `PydanticConfigAdapter` |
+| M02 | LoggerManager | `logger.ports.LoggerManager` | `InMemoryLoggerAdapter` | `StructlogAdapter` |
+| M03 | SecretManager | `secrets.ports.SecretManager` | `InMemorySecretAdapter` | `EncryptedSecretAdapter` |
+| M04 | ErrorHandlingManager | `errors.ports.ErrorHandlingManager` | `CapturingErrorAdapter` | (decorator-based) |
+| M05 | ObservabilityManager | `observability.ports.ObservabilityManager` | `InMemoryObservabilityAdapter` | `OTelAdapter` |
+| M06 | AuthManager | `auth.ports.AuthManager` | `StaticAuthAdapter` | `JwtAuthAdapter` |
+| M07 | CacheManager | `cache.ports.CacheManager` | `MemoryCacheAdapter` | `RedisCacheAdapter` |
+| M08 | DatabaseManager | `database.ports.DatabaseManager` | `MemoryDatabaseAdapter` | `SQLAlchemyAdapter` |
+| M09 | FileStorageManager | `filestorage.ports.FileStorageManager` | `MemoryStorageAdapter` | `S3StorageAdapter`, `GcsStorageAdapter`, `AzureStorageAdapter` |
+| M10 | TaskQueueManager | `taskqueue.ports.TaskQueueManager` | `MemoryTaskQueueAdapter` | `SaQAdapter` |
+| M11 | ExternalAPIManager | `external_api.ports.ExternalAPIManager` | `MockHTTPAdapter` | `ResilientHTTPAdapter` |
+| M12 | FeatureFlagManager | `feature_flags.ports.FeatureFlagManager` | `MemoryFeatureFlagAdapter` | (Unleash TBD) |
+| M13 | DependencyManager | `dependency.ports.DependencyManager` | `InMemoryDependencyAdapter` | (runtime) |
+| M14 | DynamicPromptingManager | `dynamic_prompting.ports.DynamicPromptingManager` | (use real) | (runtime) |
+| M15 | AlertManager | `alert.ports.AlertManager` | (use real) | `SlackAdapter`, `DiscordAdapter` |
+| M16 | RateLimiterManager | `ratelimit.ports.RateLimiterManager` | `InMemoryRateLimitAdapter` | (Redis TBD) |
+| M17 | I18nManager | `i18n.ports.I18nManager` | `InMemoryI18nAdapter` | (I18next TBD) |
+| M18 | PermissionManager | `permission.ports.PermissionManager` | `InMemoryPermissionAdapter` | `CasbinPermissionAdapter` |
+| M19 | LicenceManager | `licence.ports.LicenceManager` | `InMemoryLicenceAdapter` | (runtime) |
+| M20 | UpdateManager | `update.ports.UpdateManager` | `InMemoryUpdateAdapter` | (runtime) |
+| M21 | BusEventManager | `bus_event.ports.BusEventManager` | `MemoryBusAdapter` | `NatsBusAdapter`, `RedisBusAdapter` |
+| M22 | StateMachineManager | `state_machine.ports.StateMachineManager` | `InMemoryStateMachineAdapter` | (runtime) |
+
+## Bootstrap Pattern
+
+```python
+import asyncio
+from core_infrastructure.bootstrap import BootstrapOrchestrator
+from core_infrastructure.config.adapters.in_memory_config_adapter import InMemoryConfigAdapter
+from core_infrastructure.logger.adapters.in_memory_logger_adapter import InMemoryLoggerAdapter
+
+async def main():
+    config = InMemoryConfigAdapter({"app.name": "my-app", "app.env": "dev"})
+    logger = InMemoryLoggerAdapter(config_manager=config)
+    orchestrator = BootstrapOrchestrator(config, logger)
+    await orchestrator.run()
+
+asyncio.run(main())
+```
+
+## Import Safety (Lazy Loading)
+
+Optional adapters gracefully degrade to `None` when dependencies are missing:
+
+```python
+from core_infrastructure.database import SQLAlchemyAdapter
+
+if SQLAlchemyAdapter is None:
+    db = MemoryDatabaseAdapter(config, logger)  # fallback for dev/testing
+else:
+    db = SQLAlchemyAdapter(config, logger)       # production
+```
+
+| Symbol | When None | Fix |
+|--------|-----------|-----|
+| `SQLAlchemyAdapter` | sqlalchemy missing | `pip install core-cenf[sqlalchemy]` |
+| `SaQAdapter` | saq missing | `pip install core-cenf[saq]` |
+| `S3StorageAdapter` | aioboto3 missing | `pip install core-cenf[s3]` |
+| `RedisCacheAdapter` | redis missing | `pip install core-cenf[all]` |
+
+## Context Propagation (IMPLICIT)
+
+```python
+from core_infrastructure.common import context
+context.set_correlation_id("req-123")
+context.set_tenant_id("cntrs")
+# NEVER pass context as function arguments — use contextvars
+```
+
+## Error Taxonomy
+
+- `TransientError` — retryable (network timeout, DB deadlock)
+- `PermanentError` — not retryable (missing resource, invalid config)
+- `ValidationError` — schema violation (Pydantic)
+- `AuthError` — expired token, wrong signature
+- `RateLimitError` — bucket exhausted
+
+## Testing
+
+```python
+config = InMemoryConfigAdapter({"db.host": "localhost"})
+logger = InMemoryLoggerAdapter(config_manager=config)
+# All managers have InMemory adapters for zero-dependency testing
+```
+
+## CI/CD Gate
+
+```bash
+ruff check src/ tests/         # ZERO errors
+mypy src/core_infrastructure/ --strict  # ZERO errors
+python -m pytest tests/ -q     # ALL green
+```
+
+## Key Files
+
+- `pyproject.toml` — Package config, extras, dev deps
+- `AGENTS.md` — Full agent instructions (~298 lines)
+- `src/core_infrastructure/bootstrap.py` — BootstrapOrchestrator
+- `src/core_infrastructure/common/errors.py` — Error taxonomy
+- `examples/full_demo.py` — Golden path: all managers together
+- `tests/conftest.py` — Test fixtures
+- `.github/workflows/ci.yml` — CI/CD pipeline
+- `.chats/decisions.yaml` — Strategic architecture decisions
+
+## Optional
+
+- [Full Manager Table](AGENTS.md#the-22-managers--quick-reference) — Complete reference with all 22 managers
+- [BootstrapOrchestrator](src/core_infrastructure/bootstrap.py) — Lifecycle management source
+- [Full Demo](examples/full_demo.py) — All 22 managers working together
+- [Error Taxonomy](src/core_infrastructure/common/errors.py) — All error types
+- [Import Safety Contract](AGENTS.md#import-safety--lazy-loading-mandatory) — Lazy adapter loading rules
+- [CI/CD Pipeline](.github/workflows/ci.yml) — GitHub Actions workflow
+- [OpenSpec Specs](openspec/specs/) — Detailed manager specifications

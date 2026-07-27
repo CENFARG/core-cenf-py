@@ -1,7 +1,7 @@
 # AGENTS.md — Core-CENF Python Agent Instructions
 
 > **For AI coding agents**: Read this FIRST before writing any code that uses core-cenf-py.
-> Total read time: ~90 seconds. Total managers: 21. All infrastructure, zero domain logic.
+> Total read time: ~90 seconds. Total managers: 22. All infrastructure, zero domain logic.
 
 ---
 
@@ -296,3 +296,20 @@ uv venv .venv && uv pip install -e ".[dev]"
 - Test fixtures: `tests/conftest.py`
 - CI/CD pipeline: `.github/workflows/ci.yml`
 - Docusaurus expert prompt: Engram `tools/docusaurus-expert-cenf`
+- LLM-optimized index: `llms.txt`
+
+---
+
+## Anti-Patterns — What Agents Should NEVER Do
+
+| ❌ Anti-Pattern | ✅ Correct |
+|---|---|
+| Import adapter directly in business logic | Import Protocol (port) only |
+| Access `os.environ` directly | Use `config.get_string()` |
+| Pass context as function arguments | Use `contextvars` (implicit) |
+| Assume optional adapter is always available | Check `is None` before use |
+| Log raw `SecretValue` | Use `logger.mask()` or `SecretValue.__repr__` (auto-masked) |
+| Call model without `@handle_errors` decorator | Always wrap LLM calls with error handler |
+| Hardcode paths (`C:\...`) | Use `config.get_path()` or `pathlib` |
+| Write sync code in async context | Use `asyncio.to_thread()` for blocking I/O |
+| Skip the commit gate | ALWAYS run `ruff + mypy + pytest` before commit |

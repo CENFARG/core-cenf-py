@@ -99,6 +99,7 @@ from core_infrastructure.external_api.ports import ExternalAPIManager
 from core_infrastructure.feature_flags.adapters.memory_feature_flag_adapter import MemoryFeatureFlagAdapter
 from core_infrastructure.feature_flags.models import FeatureFlag, FlagConfig, FlagContext
 from core_infrastructure.feature_flags.ports import FeatureFlagManager
+from core_infrastructure.file_reader.ports import FileReaderPort
 from core_infrastructure.filestorage.models import FileRef, StorageConfig, UploadResult
 from core_infrastructure.filestorage.ports import FileStorageManager
 from core_infrastructure.i18n.adapters.in_memory_i18n_adapter import InMemoryI18nAdapter
@@ -232,6 +233,14 @@ try:
     from core_infrastructure.external_api.adapters.resilient_http_adapter import ResilientHTTPAdapter
 except ImportError:
     ResilientHTTPAdapter = None  # type: ignore[assignment,misc]
+
+# File reader adapter (need: aiofiles)
+try:
+    from core_infrastructure.file_reader.adapters.local_file_reader_adapter import (
+        LocalFileReaderAdapter,
+    )
+except ImportError:
+    LocalFileReaderAdapter = None  # type: ignore[assignment,misc]
 
 # File storage adapters (need: aiofiles, aiobotocore, gcloud-aio-storage, azure-storage-blob)
 try:

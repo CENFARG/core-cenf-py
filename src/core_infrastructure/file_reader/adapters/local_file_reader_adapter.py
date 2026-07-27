@@ -1,6 +1,6 @@
 """LocalFileReaderAdapter — reads files from the local filesystem.
 
-Uses Python's built-in pathlib for path resolution and aiofiles for 
+Uses Python's built-in pathlib for path resolution and aiofiles for
 async file I/O. Safe against path traversal when root_dir is configured.
 
 Usage:
@@ -18,11 +18,13 @@ import aiofiles
 class LocalFileReaderAdapter:
     """Reads files from a root directory on the local filesystem.
 
-    All paths are resolved relative to ``root_dir``. Path traversal 
+    All paths are resolved relative to ``root_dir``. Path traversal
     attempts (e.g., ``../../etc/passwd``) are rejected.
     """
 
-    def __init__(self, root_dir: Path | str = Path.cwd()) -> None:
+    def __init__(self, root_dir: Path | str | None = None) -> None:
+        if root_dir is None:
+            root_dir = Path.cwd()
         self._root = Path(root_dir).resolve()
 
     def _resolve(self, path: str | Path) -> Path:
@@ -42,7 +44,7 @@ class LocalFileReaderAdapter:
         resolved = self._resolve(path)
         if not resolved.is_file():
             raise FileNotFoundError(f"File not found: {path}")
-        async with aiofiles.open(resolved, "r", encoding="utf-8") as f:
+        async with aiofiles.open(resolved, encoding="utf-8") as f:
             return await f.read()
 
     async def file_exists(self, path: str | Path) -> bool:
@@ -60,5 +62,5 @@ class LocalFileReaderAdapter:
         resolved = self._resolve(path)
         if not resolved.is_file():
             raise FileNotFoundError(f"File not found: {path}")
-        async with aiofiles.open(resolved, "r", encoding="utf-8") as f:
+        async with aiofiles.open(resolved, encoding="utf-8") as f:
             return [line.rstrip("\n") for line in await f.readlines()]

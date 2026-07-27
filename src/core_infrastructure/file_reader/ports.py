@@ -1,6 +1,6 @@
 """FileReaderPort — local filesystem read contract.
 
-Separate from M09 FileStorageManager (blob storage) — this port is for 
+Separate from M09 FileStorageManager (blob storage) — this port is for
 reading local files as an agent would with `cat` or `read`. Used by workflow
 engines, prompt loaders, and any component that needs filesystem access.
 

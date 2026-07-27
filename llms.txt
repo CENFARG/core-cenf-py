@@ -1,6 +1,6 @@
 # core-cenf-py
 
-> Python 3.12+ infrastructure library. 22 managers. Clean Architecture (Ports & Adapters). Zero domain logic.
+> Python 3.12+ infrastructure library. 23 managers. Clean Architecture (Ports & Adapters). Zero domain logic.
 
 ## Quick Install
 
@@ -38,6 +38,7 @@ src/core_infrastructure/
 ├── errors/                   M04 — Classify & report errors
 ├── external_api/             M11 — Resilient HTTP with circuit breaker
 ├── feature_flags/            M12 — Runtime toggles (YAML→Unleash)
+├── file_reader/              M23 — Local filesystem reads (FileReaderPort)
 ├── filestorage/              M09 — Multi-cloud blob storage (S3, GCS, Azure)
 ├── i18n/                     M17 — Multi-language translations
 ├── licence/                  M19 — Signed licence validation
@@ -77,6 +78,7 @@ src/core_infrastructure/
 | M20 | UpdateManager | `update.ports.UpdateManager` | `InMemoryUpdateAdapter` | (runtime) |
 | M21 | BusEventManager | `bus_event.ports.BusEventManager` | `MemoryBusAdapter` | `NatsBusAdapter`, `RedisBusAdapter` |
 | M22 | StateMachineManager | `state_machine.ports.StateMachineManager` | `InMemoryStateMachineAdapter` | (runtime) |
+| M23 | FileReaderPort | `file_reader.ports.FileReaderPort` | `LocalFileReaderAdapter` | `LocalFileReaderAdapter` |
 
 ## Bootstrap Pattern
 

@@ -1,6 +1,6 @@
 [project]
 name = "core-cenf-py"
-version = "0.1.2"
+version = "0.1.3"
 description = "CENF Core Infrastructure — Horizontal Transversal Managers for Python 3.12+"
 readme = "README.md"
 license = {text = "MIT"}
@@ -63,8 +63,9 @@ gcs = ["gcloud-aio-storage>=9.0"]
 azure = ["azure-storage-blob>=12.0"]
 nats = ["nats-py>=2.0"]
 local-storage = ["aiofiles>=24.0"]
+docker-file-reader = ["core-cenf-py[local-storage]"]
 all = [
-    "core-cenf-py[sqlalchemy,postgres,s3,gcs,azure,saq,nats,local-storage]",
+    "core-cenf-py[sqlalchemy,postgres,s3,gcs,azure,saq,nats,local-storage,docker-file-reader]",
 ]
 
 [build-system]

@@ -4,6 +4,23 @@ All notable changes to core-cenf are documented in this file.
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).  
 Versioning follows [SemVer 2.0.0](https://semver.org/).
 
+## [0.1.3] — 2026-07-27
+
+### Added
+- **M23 FileReaderPort** — local filesystem read operations for agents and workflows
+- `FileReaderPort` protocol: `read_file()`, `file_exists()`, `list_files()`, `read_lines()`
+- `LocalFileReaderAdapter` with path traversal protection and aiofiles async I/O
+- `docker-file-reader` optional extra for future Docker container support
+- SDD specs, design, and tasks for FileReaderPort
+- 15 unit tests (Protocol contract + adapter with tmp_path)
+- AGENTS.md, AGENTS_API.md, and llms.txt updated with M23 references
+
+### Changed
+- `file_reader/adapters/__init__.py` — wrapped import with lazy safety (try/except)
+- `file_reader/__init__.py` — added `LocalFileReaderAdapter` with safe import
+- `core_infrastructure/__init__.py` — added `FileReaderPort` import + lazy adapter
+- Version bump: 0.1.2 → 0.1.3
+
 ## [0.1.0] — 2026-06-22
 
 ### Added

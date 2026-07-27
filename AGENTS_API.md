@@ -26,6 +26,7 @@
 | M20 | UpdateManager | Desktop auto-update + rollback | `check_for_updates(...)` |
 | M21 | BusEventManager | Decoupled pub/sub messaging | `publish(event_type, payload)` |
 | M22 | StateMachineManager | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus |
+| M23 | FileReaderPort | Local filesystem reads | `read_file(path)` → str |
 
 ---
 
@@ -626,6 +627,26 @@
 **Adapters**:
 - Test: `InMemoryStateMachineAdapter` (`core_infrastructure.state_machine.adapters.in_memory_state_machine_adapter.InMemoryStateMachineAdapter`)
 - Production: `ProductionStateMachineAdapter` (`core_infrastructure.state_machine.adapters.production_state_machine_adapter.ProductionStateMachineAdapter`)
+
+---
+
+## M23 — FileReaderPort (src/core_infrastructure/file_reader)
+**Dependencies**: None (standalone — no config, no logger, no observability needed)
+**Protocol**: `core_infrastructure.file_reader.ports.FileReaderPort`
+**Models**: None (MVP — pure Protocol, no Pydantic models)
+
+> @ai-directive: All paths are resolved relative to the adapter's root directory. Never pass absolute user-supplied paths without validation.
+
+| Method | Signature | Returns | Raises | Notes |
+|--------|-----------|---------|--------|-------|
+| read_file | `(path: str \| Path) -> str` (async) | `str` | `FileNotFoundError`, `ValueError` | UTF-8 content; ValueError on path traversal |
+| file_exists | `(path: str \| Path) -> bool` (async) | `bool` | — | Returns False for traversal attempts |
+| list_files | `(pattern: str) -> list[Path]` (async) | `list[Path]` | — | Relative paths; glob pattern; excludes dirs |
+| read_lines | `(path: str \| Path) -> list[str]` (async) | `list[str]` | `FileNotFoundError`, `ValueError` | Strips trailing newlines |
+
+**Adapters**:
+- Production/test: `LocalFileReaderAdapter` (`core_infrastructure.file_reader.adapters.local_file_reader_adapter.LocalFileReaderAdapter`)
+- Future: `DockerFileReaderAdapter` (deferred — LocalFileReaderAdapter with `root_dir=/app/data` works for Docker)
 
 ---
 

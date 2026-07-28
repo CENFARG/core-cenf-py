@@ -35,9 +35,9 @@ class TestComputeShasum:
             expected_sha256 = "a948904f2f0f479b8f8197694b30184b0d2ed1c1cd2a1ec0fb85d299a192a447"
             # SHA-512 of b"hello world\n"
             expected_sha512 = (
-                "b7f5117be2be3d6c7971226fa12f7943651c47e8b35e6a5b"
-                "9c6b9db20fe19789560f14f058ba72defaeb5d0dd4de61d9"
-                "ced955f89714c41258d1c73e85ee5d63"
+                "db3974a97f2407b7cae1ae637c0030687a11913274d57849"
+                "2558e39c16c017de84eacdc8c62fe34ee4e12b4b1428817f"
+                "09b6a2760c3f8a664ceae94d2434a593"
             )
             assert result == f"{expected_sha256}:{expected_sha512}", (
                 f"Expected dual hash, got {result}"

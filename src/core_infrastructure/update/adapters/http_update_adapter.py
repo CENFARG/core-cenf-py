@@ -1,25 +1,22 @@
 """HttpUpdateAdapter — HTTP-based UpdateManager adapter.
 
-Performs desktop app auto-updates via HTTP using ExternalAPIManager for
-resilient communication. Verifies SHA-256 hashes and Ed25519 digital
-signatures before accepting any artifact. Uses packaging.version for
-SemVer comparison.
+Performs desktop app auto-updates via HTTP using ExternalAPIManager.
+Verifies SHA-256 hashes and Ed25519 signatures. Supports JSON and YAML
+(electron-builder latest.yml) manifest formats. Applies updates with
+file-level backup and rollback.
 
 Security: download_update() verifies SHA-256 hash AND Ed25519 signature
-    before returning. On hash/signature mismatch, raises AuthError.
-    Partial downloads are discarded on failure.
-Observability: Update events emit RED metrics via ObservabilityManager
-    (cenf.update.* counters and histograms).
-
-Author: CENF AI Team
-Version: 0.1.0
+    before returning. apply_update() saves a backup before installing.
 """
 
 from __future__ import annotations
 
 import json
+import shutil
+from pathlib import Path
 from typing import Any
 
+import yaml
 from packaging.version import Version
 
 from core_infrastructure.common.errors import PermanentError
@@ -27,8 +24,10 @@ from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.external_api.ports import ExternalAPIManager
 from core_infrastructure.update.adapters.http_update_adapter_helpers import (
     ReleaseWrapper,
+    UpdateResultImpl,
     detect_platform,
     get_json_schema,
+    normalize_yaml_keys,
     verify_hash,
     verify_signature,
 )
@@ -42,12 +41,7 @@ from core_infrastructure.update.ports import (
 
 
 class HttpUpdateAdapter:
-    """HTTP-based UpdateManager adapter with signature verification.
-
-    Queries a remote update endpoint via ExternalAPIManager, compares
-    versions using SemVer (packaging.version), downloads and verifies
-    artifacts (SHA-256 + Ed25519), and applies updates with rollback
-    support.
+    """HTTP-based UpdateManager with signature verification, backup and rollback.
 
     Usage::
 
@@ -65,30 +59,23 @@ class HttpUpdateAdapter:
         *,
         config: UpdateConfig,
         api_manager: ExternalAPIManager,
+        data_dir: str | Path | None = None,
     ) -> None:
-        """Initialize the HTTP update adapter.
-
-        Args:
-            config: UpdateConfig with endpoint URL, public key, and version.
-            api_manager: ExternalAPIManager for HTTP communication.
-        """
         self._config = config
         self._api = api_manager
         self._platform = detect_platform()
-        self._rollback_states: dict[str, str] = {}
+        self._data_dir = Path(data_dir) if data_dir else Path.home() / ".cenf" / "update-data"
+        # State tracking for update lifecycle
+        self._download_cache: dict[str, bytes] = {}
+        self._download_versions: dict[str, str] = {}
+        self._version_cache: dict[str, str] = {}
+        self._rollback_states: dict[str, dict[str, str | bool]] = {}
 
     # ── Public API — UpdateManager Protocol ───────────────────────────────
 
     async def get_current_version(self, *, app_id: str) -> str:
-        """Return the currently installed version for an app.
-
-        Args:
-            app_id: The application identifier.
-
-        Returns:
-            str: The current SemVer version from config.
-        """
-        return self._config.current_version
+        """Return the installed version — checks internal cache first, then config."""
+        return self._version_cache.get(app_id, self._config.current_version)
 
     async def check_for_updates(
         self,
@@ -96,39 +83,38 @@ class HttpUpdateAdapter:
         app_id: str,
         channel: Channel = "stable",
     ) -> AvailableRelease | None:
-        """Query the remote update endpoint for the latest release.
+        """Query the remote endpoint for the latest release. Parses JSON or YAML.
 
         Performs a GET to ``{update_url}/{app_id}/latest?channel={channel}``
-        and parses the JSON response into ReleaseMetadata. Compares the
-        remote version against the current version using SemVer.
-        Returns None if no update is needed.
-
-        Args:
-            app_id: The application identifier.
-            channel: The update channel to query.
-
-        Returns:
-            AvailableRelease | None: The latest release, or None.
+        and compares the remote version (SemVer) against the current version.
+        Returns None if already up-to-date.
         """
         url = (
             f"{self._config.update_url.rstrip('/')}/{app_id}"
             f"/latest?channel={channel}"
         )
         response: ApiResponse = await self._api.get(url=url)
-
         if response.status_code != 200:
             return None
 
-        body = response.body
-        if isinstance(body, bytes):
-            body = json.loads(body)
+        raw = response.body
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        elif not isinstance(raw, str):
+            raw = str(raw)
 
-        metadata = ReleaseMetadata(**body)
+        try:
+            body = json.loads(raw)
+        except json.JSONDecodeError:
+            body = yaml.safe_load(raw)
 
+        if not isinstance(body, dict):
+            return None
+
+        metadata = ReleaseMetadata(**normalize_yaml_keys(body))
         current = await self.get_current_version(app_id=app_id)
         if Version(metadata.version) <= Version(current):
             return None
-
         return ReleaseWrapper(metadata)
 
     async def download_update(
@@ -137,24 +123,13 @@ class HttpUpdateAdapter:
         app_id: str,
         release: AvailableRelease,
     ) -> UpdateArtifact:
-        """Download and verify the artifact for the current platform.
-
-        Selects the correct artifact for the current platform, downloads
-        it via ExternalAPIManager, verifies the SHA-256 hash, and verifies
-        the Ed25519 digital signature if present.
-
-        Args:
-            app_id: The application identifier.
-            release: The AvailableRelease to download from.
-
-        Returns:
-            UpdateArtifact: The verified artifact.
+        """Download, verify (SHA-256 + Ed25519), and cache the artifact for apply_update.
 
         Raises:
             PermanentError: If no artifact matches the current platform.
-            AuthError: If the SHA-256 hash or Ed25519 signature does not match.
+            AuthError: If the hash or signature does not match.
         """
-        # Find artifact for current platform
+        _ = app_id
         selected: UpdateArtifact | None = None
         for artifact in release.artifacts():
             if artifact.platform() == self._platform:
@@ -167,7 +142,6 @@ class HttpUpdateAdapter:
                 f"release {release.version()}"
             )
 
-        # Download the artifact
         response: ApiResponse = await self._api.get(url=selected.url())
         if response.status_code != 200:
             raise PermanentError(
@@ -179,14 +153,13 @@ class HttpUpdateAdapter:
         if isinstance(raw_data, str):
             raw_data = raw_data.encode("utf-8")
 
-        # Verify SHA-256 hash
         verify_hash(raw_data, selected.hash())
-
-        # Verify Ed25519 signature if present
         signature_hex = selected.signature()
         if signature_hex:
             verify_signature(raw_data, signature_hex, self._config.public_key)
 
+        self._download_cache[selected.url()] = raw_data
+        self._download_versions[selected.url()] = release.version()
         return selected
 
     async def apply_update(
@@ -195,44 +168,73 @@ class HttpUpdateAdapter:
         app_id: str,
         artifact: UpdateArtifact,
     ) -> UpdateResult:
-        """Apply the update using platform-specific mechanisms.
+        """Apply the update: backup current binary, write new version, track state.
 
-        Not fully implemented in MVP — raises NotImplementedError for
-        unsupported platforms. Platform-specific sub-adapters handle
-        the actual installation.
-
-        Args:
-            app_id: The application identifier.
-            artifact: The verified UpdateArtifact to install.
-
-        Returns:
-            UpdateResult: The result of the update application.
+        If rollback_enabled and the write fails, restores the backup.
 
         Raises:
-            NotImplementedError: Always in the MVP adapter.
+            PermanentError: If no cached download exists (call download_update first).
         """
-        raise NotImplementedError(
-            f"apply_update not implemented for platform '{self._platform}'. "
-            "Use a platform-specific sub-adapter."
-        )
+        raw_data = self._download_cache.get(artifact.url())
+        if raw_data is None:
+            raise PermanentError(
+                f"No cached download for artifact at {artifact.url()}. "
+                "Call download_update() before apply_update()."
+            )
+
+        current_version = await self.get_current_version(app_id=app_id)
+        new_version = self._download_versions.get(artifact.url(), current_version)
+        app_dir = self._data_dir / app_id
+        app_dir.mkdir(parents=True, exist_ok=True)
+        install_path = app_dir / "current.bin"
+        backup_path = app_dir / "backup.bin"
+
+        if install_path.exists():
+            shutil.copy2(install_path, backup_path)
+
+        self._rollback_states[app_id] = {
+            "previous_version": current_version,
+            "previous_hash": artifact.hash(),
+            "rollback_available": True,
+        }
+
+        try:
+            install_path.write_bytes(raw_data)
+            self._version_cache[app_id] = new_version
+            return UpdateResultImpl(success=True, new_version=new_version)
+        except OSError as exc:
+            if self._config.rollback_enabled and backup_path.exists():
+                try:
+                    shutil.copy2(backup_path, install_path)
+                    self._version_cache[app_id] = current_version
+                except OSError:
+                    pass
+            return UpdateResultImpl(success=False, error=f"Apply failed: {exc!s}")
 
     async def rollback(self, *, app_id: str) -> UpdateResult:
-        """Rollback to the previous known-good version.
+        """Restore the previous binary and version. Raises PermanentError if no state exists."""
+        state = self._rollback_states.get(app_id)
+        if state is None or not state.get("rollback_available"):
+            raise PermanentError(f"No rollback state available for app '{app_id}'")
 
-        Args:
-            app_id: The application identifier.
+        previous_version = str(state["previous_version"])
+        app_dir = self._data_dir / app_id
+        backup_path = app_dir / "backup.bin"
+        install_path = app_dir / "current.bin"
 
-        Returns:
-            UpdateResult: The result of the rollback operation.
+        if backup_path.exists():
+            try:
+                shutil.copy2(backup_path, install_path)
+            except OSError as exc:
+                return UpdateResultImpl(
+                    success=False, error=f"Rollback restore failed: {exc!s}"
+                )
 
-        Raises:
-            NotImplementedError: Not yet implemented in the MVP.
-        """
-        raise NotImplementedError(
-            "rollback not yet implemented in HttpUpdateAdapter"
-        )
+        self._rollback_states.pop(app_id, None)
+        self._version_cache[app_id] = previous_version
+        return UpdateResultImpl(success=True, new_version=previous_version)
 
     @staticmethod
     def get_json_schema() -> dict[str, Any]:
-        """Describe this manager contract (delegates to helpers)."""
+        """Describe this manager contract for agent discovery."""
         return get_json_schema()

@@ -15,7 +15,9 @@ Version: 0.1.0
 from __future__ import annotations
 
 import hashlib
+import re
 import sys
+from pathlib import Path
 from typing import Any
 
 from cryptography.exceptions import InvalidSignature
@@ -141,6 +143,36 @@ class UpdateResultImpl:
         return self._error
 
 
+def _camel_to_snake(name: str) -> str:
+    """Convert camelCase to snake_case (e.g. ``"releaseNotesUrl"`` → ``"release_notes_url"``)."""
+    s1 = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", name)
+    return re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", s1).lower()
+
+
+def normalize_yaml_keys(data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize camelCase YAML keys to snake_case recursively (handles ``artifacts`` list).
+
+    Args:
+        data: A dictionary with potential camelCase keys.
+
+    Returns:
+        dict[str, Any]: A new dictionary with snake_case keys.
+    """
+    normalized: dict[str, Any] = {}
+    for key, value in data.items():
+        snake_key = _camel_to_snake(key)
+        if snake_key == "artifacts" and isinstance(value, list):
+            normalized[snake_key] = [
+                {_camel_to_snake(k): v for k, v in item.items()}
+                if isinstance(item, dict)
+                else item
+                for item in value
+            ]
+        else:
+            normalized[snake_key] = value
+    return normalized
+
+
 def detect_platform() -> str:
     """Detect the current platform for artifact selection.
 
@@ -198,6 +230,43 @@ def verify_signature(
             "does not match the configured public key",
             details={"reason": "signature_mismatch"},
         ) from exc
+
+
+def _resolve_app_paths(
+    data_dir: Path, app_id: str
+) -> tuple[Path, Path, Path]:
+    """Resolve install path, backup path, and app directory for an app.
+
+    Args:
+        data_dir: Root data directory for update state.
+        app_id: The application identifier.
+
+    Returns:
+        tuple[Path, Path, Path]: ``(app_dir, install_path, backup_path)``.
+    """
+    app_dir = data_dir / app_id
+    return app_dir, app_dir / "current.bin", app_dir / "backup.bin"
+
+
+def _save_rollback_state(
+    rollback_states: dict[str, dict[str, str | bool]],
+    app_id: str,
+    previous_version: str,
+    previous_hash: str,
+) -> None:
+    """Persist rollback state before applying an update.
+
+    Args:
+        rollback_states: The adapter's rollback state dictionary.
+        app_id: The application identifier.
+        previous_version: The currently installed version.
+        previous_hash: SHA-256 hash of the current artifact.
+    """
+    rollback_states[app_id] = {
+        "previous_version": previous_version,
+        "previous_hash": previous_hash,
+        "rollback_available": True,
+    }
 
 
 def get_json_schema() -> dict[str, Any]:

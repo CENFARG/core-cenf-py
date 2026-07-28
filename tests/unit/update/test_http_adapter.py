@@ -246,6 +246,35 @@ class TestCheckForUpdates:
         url = call_args.kwargs.get("url", "")
         assert "cenf-desktop" in url
 
+    @pytest.mark.asyncio
+    async def test_parses_yaml_manifest(
+        self, adapter, mock_api
+    ) -> None:
+        """check_for_updates parses YAML manifest (latest.yml format)."""
+        yaml_data = (
+            "version: 2.0.0\n"
+            "channel: stable\n"
+            "releaseNotesUrl: https://example.com/notes/2.0.0\n"
+            "artifacts:\n"
+            f"  - url: https://example.com/cenf-2.0.0.exe\n"
+            f"    platform: {_current_platform()}\n"
+            f"    arch: x64\n"
+            f"    kind: installer\n"
+            f"    hash: {'a' * 64}\n"
+        )
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=yaml_data.encode("utf-8"),
+        )
+
+        result = await adapter.check_for_updates(
+            app_id="test-app", channel="stable"
+        )
+        assert result is not None
+        assert result.version() == "2.0.0"
+        assert result.channel() == "stable"
+        assert len(result.artifacts()) == 1
+
 
 # ── download_update ─────────────────────────────────────────────────────────
 
@@ -446,15 +475,173 @@ class TestApplyUpdate:
     """Tests for apply_update()."""
 
     @pytest.mark.asyncio
-    async def test_raises_not_implemented_error(self, adapter, ed25519_keypair) -> None:
-        """apply_update raises NotImplementedError for unsupported platforms."""
-        from unittest.mock import MagicMock
+    async def test_apply_update_returns_success(
+        self, adapter, mock_api, ed25519_keypair
+    ) -> None:
+        """apply_update returns UpdateResult with success=True after full flow."""
+        priv_key, _public_hex = ed25519_keypair
+        artifact_data = b"fake-binary-content"
+        expected_hash = _compute_sha256(artifact_data)
+        signature = _sign_data(priv_key, artifact_data)
 
-        artifact = MagicMock(spec=UpdateArtifact)
+        # Step 1: mock check_for_updates response
+        metadata = {
+            "version": "1.1.0",
+            "channel": "stable",
+            "release_notes_url": "https://example.com/notes/1.1.0",
+            "artifacts": [
+                {
+                    "url": "https://example.com/cenf-1.1.0.exe",
+                    "platform": _current_platform(),
+                    "arch": "x64",
+                    "kind": "installer",
+                    "hash": expected_hash,
+                    "signature": signature,
+                }
+            ],
+        }
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=metadata,
+        )
 
-        # Delegate to platform handler — raises NotImplementedError
-        with pytest.raises(NotImplementedError):
-            await adapter.apply_update(app_id="test-app", artifact=artifact)
+        # Step 2: check_for_updates
+        release = await adapter.check_for_updates(
+            app_id="test-app", channel="stable"
+        )
+        assert release is not None
+
+        # Step 3: mock download response (second call to api.get)
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=artifact_data,
+        )
+
+        artifact = await adapter.download_update(
+            app_id="test-app", release=release
+        )
+        assert artifact is not None
+
+        # Step 4: apply_update should succeed
+        result = await adapter.apply_update(
+            app_id="test-app", artifact=artifact
+        )
+        assert result.success() is True
+        assert result.new_version() == "1.1.0"
+        assert result.error() is None
+
+    @pytest.mark.asyncio
+    async def test_apply_update_saves_rollback_state(
+        self, adapter, mock_api, ed25519_keypair
+    ) -> None:
+        """apply_update saves rollback state so rollback can restore."""
+        priv_key, _public_hex = ed25519_keypair
+        artifact_data = b"fake-binary-content"
+        expected_hash = _compute_sha256(artifact_data)
+        signature = _sign_data(priv_key, artifact_data)
+
+        metadata = {
+            "version": "1.1.0",
+            "channel": "stable",
+            "release_notes_url": "https://example.com/notes/1.1.0",
+            "artifacts": [
+                {
+                    "url": "https://example.com/cenf-1.1.0.exe",
+                    "platform": _current_platform(),
+                    "arch": "x64",
+                    "kind": "installer",
+                    "hash": expected_hash,
+                    "signature": signature,
+                }
+            ],
+        }
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=metadata,
+        )
+
+        release = await adapter.check_for_updates(
+            app_id="test-app", channel="stable"
+        )
+        assert release is not None
+
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=artifact_data,
+        )
+
+        artifact = await adapter.download_update(
+            app_id="test-app", release=release
+        )
+        result = await adapter.apply_update(
+            app_id="test-app", artifact=artifact
+        )
+        assert result.success() is True
+
+        # Rollback should now restore the previous version
+        rollback_result = await adapter.rollback(app_id="test-app")
+        assert rollback_result.success() is True
+        assert rollback_result.new_version() == "1.0.0"
+
+
+# ── rollback ─────────────────────────────────────────────────────────────────
+
+class TestRollbackWithHttpAdapter:
+    """Tests for rollback() on HttpUpdateAdapter."""
+
+    @pytest.mark.asyncio
+    async def test_rollback_restores_previous_version(
+        self, adapter, mock_api, ed25519_keypair
+    ) -> None:
+        """rollback restores the version saved before apply_update."""
+        priv_key, _public_hex = ed25519_keypair
+        artifact_data = b"fake-binary-content"
+        expected_hash = _compute_sha256(artifact_data)
+        signature = _sign_data(priv_key, artifact_data)
+
+        metadata = {
+            "version": "1.1.0",
+            "channel": "stable",
+            "release_notes_url": "https://example.com/notes/1.1.0",
+            "artifacts": [
+                {
+                    "url": "https://example.com/cenf-1.1.0.exe",
+                    "platform": _current_platform(),
+                    "arch": "x64",
+                    "kind": "installer",
+                    "hash": expected_hash,
+                    "signature": signature,
+                }
+            ],
+        }
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=metadata,
+        )
+
+        release = await adapter.check_for_updates(
+            app_id="test-app", channel="stable"
+        )
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=artifact_data,
+        )
+        artifact = await adapter.download_update(
+            app_id="test-app", release=release
+        )
+        await adapter.apply_update(app_id="test-app", artifact=artifact)
+
+        result = await adapter.rollback(app_id="test-app")
+        assert result.success() is True
+        assert result.new_version() == "1.0.0"
+
+    @pytest.mark.asyncio
+    async def test_rollback_raises_when_no_state(self, adapter) -> None:
+        """rollback raises PermanentError when no rollback state exists."""
+        from core_infrastructure.common.errors import PermanentError
+
+        with pytest.raises(PermanentError):
+            await adapter.rollback(app_id="test-app")
 
 
 # ── Protocol compliance ─────────────────────────────────────────────────────

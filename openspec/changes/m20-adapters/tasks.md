@@ -32,15 +32,19 @@ Chain strategy: pending
 - [ ] 1.2 Register all 5 adapters in `adapters/__init__.py`
 - [ ] 1.3 Add lazy imports in top-level `__init__.py` (try/except ImportError → None)
 
-## Phase 2: A1 — HttpUpdateAdapter (Electron Desktop)
+## Phase 2: A1 — HttpUpdateAdapter (Generic Desktop HTTP)
 
-- [ ] 2.1 RED: test `apply_update` calls `electron.quitAndInstall()`
-- [ ] 2.2 GREEN: implement electron-updater lifecycle in `apply_update`
-- [ ] 2.3 RED: test `rollback` restores AppImage backup
-- [ ] 2.4 GREEN: implement rollback — backup restore
-- [ ] 2.5 RED: test `get_current_version` reads package.json then fallback config
-- [ ] 2.6 GREEN: implement `get_current_version` — try `package.json` → `UpdateConfig`
-- [ ] 2.7 REFACTOR: verify ≤250 lines, extract logic if oversized
+- [x] 2.1 RED: test `apply_update` returns UpdateResult.success=True (full flow: check → download → apply)
+- [x] 2.2 GREEN: implement `apply_update` — backup binary + install + version tracking
+- [x] 2.3 RED: test `rollback` restores previous version; raises PermanentError when no state
+- [x] 2.4 GREEN: implement `rollback` — restore backup, revert version cache
+- [x] 2.5 RED: test YAML manifest parsing (latest.yml format); test rollback state
+- [x] 2.6 GREEN: implement YAML support in `check_for_updates` (JSON → YAML fallback)
+- [x] 2.7 REFACTOR: compact docstrings to 240 lines, extract YAML helpers to helpers module
+
+> **Note**: Designed as generic HTTP adapter per phase requirements. No electron-updater dependency.
+> Uses httpx-compatible ExternalAPIManager, cryptography for Ed25519, helpers for SHA hash.
+> YAML support via pyyaml for electron-builder latest.yml compatibility.
 
 ## Phase 3: A4 — PipUpdateAdapter (CLI Git-SHA)
 

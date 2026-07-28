@@ -32,7 +32,6 @@ from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.update.models import UpdateConfig
 from core_infrastructure.update.ports import (
     Channel,
-    UpdateArtifact,
     UpdateManager,
 )
 

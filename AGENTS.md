@@ -48,7 +48,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 | M17 | **I18nManager** | Multi-language translations | `t(key, **params)` | `InMemoryI18nAdapter` |
 | M18 | **PermissionManager** | RBAC+ABAC access control | `check_permission(...)` | `InMemoryPermissionAdapter` |
 | M19 | **LicenceManager** | Signed licence validation | `load_license_from_string(...)` | `InMemoryLicenceAdapter` |
-| M20 | **UpdateManager** | Desktop auto-update + rollback | `check_for_updates(...)` | `InMemoryUpdateAdapter` |
+| M20 | **UpdateManager** | Desktop/CLI/Web/Android auto-update + rollback | `check_for_updates(...)` | `InMemoryUpdateAdapter` | `HttpUpdateAdapter`, `PipUpdateAdapter`, `WebUpdateAdapter`, `GitHubReleaseAdapter`, `AndroidUpdateAdapter` |
 | M21 | **BusEventManager** | Decoupled pub/sub messaging | `publish(event_type, payload)` | `MemoryBusAdapter` |
 | M22 | **StateMachineManager** | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus | `InMemoryStateMachineAdapter` |
 | M23 | **FileReaderPort** | Local filesystem reads | `read_file(path)` → str | `LocalFileReaderAdapter` |

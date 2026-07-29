@@ -52,6 +52,7 @@ from core_infrastructure.config.adapters.pydantic_config_adapter import Pydantic
 | M21 | **BusEventManager** | Decoupled pub/sub messaging | `publish(event_type, payload)` | `MemoryBusAdapter` |
 | M22 | **StateMachineManager** | State machine with guards, hooks, error strategies | `run(ctx)` → StateMachineStatus | `InMemoryStateMachineAdapter` |
 | M23 | **FileReaderPort** | Local filesystem reads | `read_file(path)` → str | `LocalFileReaderAdapter` |
+| M24 | **MaintenanceManager** | GDPR error reporting + telemetry + GitHub Issues | `capture_error(app_id, error, context)` | `InMemoryMaintenanceAdapter` |
 
 ---
 

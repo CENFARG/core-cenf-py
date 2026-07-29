@@ -233,7 +233,13 @@ class InMemoryUpdateAdapter:
             UpdateResult: Success or failure result.
         """
         previous = await self.get_current_version(app_id=app_id)
-        previous_hash = self._current_hashes.get(app_id, artifact.hash())
+        # previous_hash is the expected hash at rollback time — always the
+        # artifact being applied, NOT the prior stored hash. Using the prior
+        # hash caused BUG 5: on second apply_update with a different artifact,
+        # _current_hashes held the FIRST artifact's hash, making rollback
+        # compare the second artifact's hash against the first artifact's hash
+        # and always fail with a mismatch.
+        previous_hash = artifact.hash()
 
         # Save rollback state BEFORE attempting apply
         self._rollback_states[app_id] = RollbackState(

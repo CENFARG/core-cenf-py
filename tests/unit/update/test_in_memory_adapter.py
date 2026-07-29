@@ -407,6 +407,75 @@ class TestApplyUpdate:
         assert rollback_result.success() is True
         assert rollback_result.new_version() == "1.0.0"
 
+    @pytest.mark.asyncio
+    async def test_multiple_applies_with_different_artifacts(
+        self, config
+    ) -> None:
+        """BUG 5: Second apply_update with different artifact must save correct hash.
+
+        Regression: _current_hashes.get(app_id, artifact.hash()) used the PRIOR
+        artifact's hash (from the first apply) as previous_hash on the second
+        apply. This caused rollback after the second apply to fail with a hash
+        mismatch, because the rollback check compared the second artifact's hash
+        against the first artifact's hash.
+
+        Fix: always set previous_hash = artifact.hash() — the expected hash at
+        rollback time is the artifact being applied, not the prior state.
+        """
+        from core_infrastructure.update.adapters.in_memory_update_adapter import (
+            InMemoryUpdateAdapter,
+        )
+
+        artifact_v1 = _Artifact(
+            url="https://example.com/cenf-1.1.0.exe",
+            platform=_current_platform(),
+            arch="x64",
+            kind="installer",
+            hash="a" * 64,
+        )
+        artifact_v2 = _Artifact(
+            url="https://example.com/cenf-2.0.0.exe",
+            platform=_current_platform(),
+            arch="x64",
+            kind="installer",
+            hash="b" * 64,
+        )
+
+        adapter = InMemoryUpdateAdapter(config=config)
+        adapter.add_release(
+            "stable",
+            _Release(
+                version="1.1.0",
+                channel="stable",
+                artifacts=[artifact_v1],
+            ),
+        )
+        adapter.add_release(
+            "stable2",
+            _Release(
+                version="2.0.0",
+                channel="stable",
+                artifacts=[artifact_v2],
+            ),
+        )
+
+        # First apply — artifact_v1 (hash "a"*64)
+        result1 = await adapter.apply_update(
+            app_id="multi-app", artifact=artifact_v1
+        )
+        assert result1.success() is True
+
+        # Second apply — artifact_v2 (hash "b"*64, DIFFERENT hash)
+        result2 = await adapter.apply_update(
+            app_id="multi-app", artifact=artifact_v2
+        )
+        assert result2.success() is True
+
+        # Rollback from second apply — MUST succeed (BUG 5 fix)
+        rollback_result = await adapter.rollback(app_id="multi-app")
+        assert rollback_result.success() is True
+        assert rollback_result.new_version() == "1.1.0"
+
 
 # ── rollback ────────────────────────────────────────────────────────────────
 

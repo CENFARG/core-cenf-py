@@ -11,6 +11,7 @@ Tests cover:
 - apply_update() returns success UpdateResult
 - rollback() restores previous version
 - rollback() raises when no rollback state exists
+- rollback() fails on hash mismatch even when version matches previous
 - get_json_schema() returns a dict
 - Multiple update + rollback cycles work correctly
 
@@ -504,6 +505,32 @@ class TestRollbackHashIntegrity:
         # Tamper with the rollback state hash
         adapter._tamper_rollback_hash("test-app", "0" * 64)
 
+        with pytest.raises(PermanentError, match=r"hash"):
+            await adapter.rollback(app_id="test-app")
+
+    @pytest.mark.asyncio
+    async def test_rollback_fails_when_hash_tampered_and_version_reset(
+        self, adapter, artifact_win
+    ) -> None:
+        """rollback raises PermanentError when hash tampered even if version matches previous.
+
+        Regression test for BUG 4: integrity check used `and` instead of `or`,
+        meaning if an attacker reset the version to match the rollback state
+        while the hash was corrupted, the check would silently pass.
+        """
+        # Apply an update first to create rollback state
+        await adapter.apply_update(app_id="test-app", artifact=artifact_win)
+        # Now _current_versions["test-app"] = "1.1.0"
+        # Rollback state: previous_version="1.0.0", previous_hash=hash_of_1.1.0
+
+        # Reset the current version to match the rollback's previous_version
+        adapter._current_versions["test-app"] = "1.0.0"
+
+        # Tamper the rollback hash to simulate corruption
+        adapter._tamper_rollback_hash("test-app", "0" * 64)
+
+        # With the `and` bug this would NOT raise (hash differs but version matches)
+        # With `or` fix this correctly raises
         with pytest.raises(PermanentError, match=r"hash"):
             await adapter.rollback(app_id="test-app")
 

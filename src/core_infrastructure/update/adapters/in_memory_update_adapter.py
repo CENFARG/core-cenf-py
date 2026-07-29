@@ -291,8 +291,10 @@ class InMemoryUpdateAdapter:
             )
 
         # Verify rollback integrity: current hash must match stored hash
+        # previous_hash stores the expected hash at rollback time (artifact.hash()),
+        # so a mismatch means someone or something tampered with the state
         current_hash = self._current_hashes.get(app_id, "")
-        if current_hash != state.previous_hash and self._current_versions.get(app_id) != state.previous_version:
+        if current_hash != state.previous_hash:
             raise PermanentError(
                 "Rollback hash mismatch: the current state does not "
                 "match the expected rollback state",

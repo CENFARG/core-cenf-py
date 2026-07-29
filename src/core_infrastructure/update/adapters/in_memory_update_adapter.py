@@ -42,6 +42,7 @@ class _UpdateResult:
         success: bool,
         new_version: str | None = None,
         error: str | None = None,
+        requires_restart: bool = False,
     ) -> None:
         """Initialize the result.
 
@@ -49,10 +50,12 @@ class _UpdateResult:
             success: Whether the operation succeeded.
             new_version: The version after the operation, or None.
             error: Error description on failure, or None.
+            requires_restart: Whether a restart is required.
         """
         self._success = success
         self._new_version = new_version
         self._error = error
+        self._requires_restart = requires_restart
 
     def success(self) -> bool:
         """Return whether the operation succeeded."""
@@ -65,6 +68,10 @@ class _UpdateResult:
     def error(self) -> str | None:
         """Return the error description, or None on success."""
         return self._error
+
+    def requires_restart(self) -> bool:
+        """Return whether a restart is required."""
+        return self._requires_restart
 
 
 def _detect_platform() -> str:

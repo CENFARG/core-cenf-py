@@ -86,6 +86,10 @@ class TestAvailableReleaseProtocol:
         """Protocol requires metadata() -> Mapping[str, Any]."""
         assert hasattr(AvailableRelease, "metadata")
 
+    def test_has_release_notes_url_method(self) -> None:
+        """Protocol requires release_notes_url() -> str | None."""
+        assert hasattr(AvailableRelease, "release_notes_url")
+
     def test_complete_class_satisfies_protocol(self) -> None:
         """A class implementing all methods satisfies AvailableRelease."""
 
@@ -101,6 +105,9 @@ class TestAvailableReleaseProtocol:
 
             def metadata(self) -> dict[str, Any]:
                 return {}
+
+            def release_notes_url(self) -> str | None:
+                return None
 
         assert isinstance(CompleteRelease(), AvailableRelease)
 
@@ -149,6 +156,10 @@ class TestUpdateArtifactProtocol:
         """Protocol requires signature() -> str | None."""
         assert hasattr(UpdateArtifact, "signature")
 
+    def test_has_size_bytes_method(self) -> None:
+        """Protocol requires size_bytes() -> int."""
+        assert hasattr(UpdateArtifact, "size_bytes")
+
     def test_complete_class_satisfies_protocol(self) -> None:
         """A class implementing all methods satisfies UpdateArtifact."""
 
@@ -170,6 +181,9 @@ class TestUpdateArtifactProtocol:
 
             def signature(self) -> str | None:
                 return None
+
+            def size_bytes(self) -> int:
+                return 1048576
 
         assert isinstance(CompleteArtifact(), UpdateArtifact)
 
@@ -206,6 +220,10 @@ class TestUpdateResultProtocol:
         """Protocol requires error() -> str | None."""
         assert hasattr(UpdateResult, "error")
 
+    def test_has_requires_restart_method(self) -> None:
+        """Protocol requires requires_restart() -> bool."""
+        assert hasattr(UpdateResult, "requires_restart")
+
     def test_complete_class_satisfies_protocol(self) -> None:
         """A class implementing all methods satisfies UpdateResult."""
 
@@ -218,6 +236,9 @@ class TestUpdateResultProtocol:
 
             def error(self) -> str | None:
                 return None
+
+            def requires_restart(self) -> bool:
+                return False
 
         assert isinstance(CompleteResult(), UpdateResult)
 

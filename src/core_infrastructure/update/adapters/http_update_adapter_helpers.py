@@ -68,6 +68,10 @@ class ArtifactWrapper:
         """Return the Ed25519 signature, or None."""
         return self._meta.signature
 
+    def size_bytes(self) -> int:
+        """Return the size of the artifact in bytes."""
+        return self._meta.size_bytes
+
 
 class ReleaseWrapper:
     """Concrete AvailableRelease wrapping a ReleaseMetadata model.
@@ -99,6 +103,10 @@ class ReleaseWrapper:
         """Return the list of artifacts."""
         return self._artifacts
 
+    def release_notes_url(self) -> str | None:
+        """Return the URL to release notes, or None."""
+        return self._meta.release_notes_url
+
     def metadata(self) -> dict[str, Any]:
         """Return additional metadata."""
         return {
@@ -116,6 +124,7 @@ class UpdateResultImpl:
         success: bool,
         new_version: str | None = None,
         error: str | None = None,
+        requires_restart: bool = False,
     ) -> None:
         """Initialize the result.
 
@@ -123,10 +132,12 @@ class UpdateResultImpl:
             success: Whether the operation succeeded.
             new_version: The version after the operation.
             error: Error description on failure.
+            requires_restart: Whether a restart is required.
         """
         self._success = success
         self._new_version = new_version
         self._error = error
+        self._requires_restart = requires_restart
 
     def success(self) -> bool:
         """Return whether the operation succeeded."""
@@ -139,6 +150,10 @@ class UpdateResultImpl:
     def error(self) -> str | None:
         """Return the error description, or None."""
         return self._error
+
+    def requires_restart(self) -> bool:
+        """Return whether a restart is required."""
+        return self._requires_restart
 
 
 def detect_platform() -> str:

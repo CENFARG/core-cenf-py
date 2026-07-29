@@ -160,6 +160,7 @@ class TestCheckForUpdates:
                     "kind": "installer",
                     "hash": "a" * 64,
                     "signature": None,
+                    "size_bytes": 1048576,
                 }
             ],
         }
@@ -271,6 +272,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -280,6 +284,7 @@ class TestDownloadUpdate:
                             "arch": "x64",
                             "kind": "installer",
                             "hash": expected_hash,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -316,6 +321,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -325,6 +333,7 @@ class TestDownloadUpdate:
                             "arch": "x64",
                             "kind": "installer",
                             "hash": "b" * 64,  # wrong hash
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -362,6 +371,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -372,6 +384,7 @@ class TestDownloadUpdate:
                             "kind": "installer",
                             "hash": expected_hash,
                             "signature": signature,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -413,6 +426,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -423,6 +439,7 @@ class TestDownloadUpdate:
                             "kind": "installer",
                             "hash": expected_hash,
                             "signature": tampered_sig,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -515,3 +532,7 @@ class ArtifactMeta:
     @property
     def signature(self) -> str | None:
         return self._data.get("signature")
+
+    @property
+    def size_bytes(self) -> int:
+        return self._data.get("size_bytes", 1048576)

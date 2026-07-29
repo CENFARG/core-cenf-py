@@ -56,6 +56,7 @@ class _Artifact:
         kind: str,
         hash: str,
         signature: str | None = None,
+        size_bytes: int = 1048576,
     ) -> None:
         self._url = url
         self._platform = platform
@@ -63,6 +64,7 @@ class _Artifact:
         self._kind = kind
         self._hash = hash
         self._signature = signature
+        self._size_bytes = size_bytes
 
     def url(self) -> str:
         return self._url
@@ -82,6 +84,9 @@ class _Artifact:
     def signature(self) -> str | None:
         return self._signature
 
+    def size_bytes(self) -> int:
+        return self._size_bytes
+
 
 class _Release:
     """Concrete AvailableRelease implementation."""
@@ -97,6 +102,7 @@ class _Release:
         self._channel = channel
         self._artifacts = artifacts
         self._metadata = metadata or {}
+        self._release_notes_url: str | None = self._metadata.get("release_notes_url", None)
 
     def version(self) -> str:
         return self._version
@@ -106,6 +112,9 @@ class _Release:
 
     def artifacts(self) -> list[_Artifact]:
         return self._artifacts
+
+    def release_notes_url(self) -> str | None:
+        return self._release_notes_url
 
     def metadata(self) -> dict:
         return self._metadata
@@ -119,10 +128,12 @@ class _Result:
         success: bool,
         new_version: str | None = None,
         error: str | None = None,
+        requires_restart: bool = False,
     ) -> None:
         self._success = success
         self._new_version = new_version
         self._error = error
+        self._requires_restart = requires_restart
 
     def success(self) -> bool:
         return self._success
@@ -132,6 +143,9 @@ class _Result:
 
     def error(self) -> str | None:
         return self._error
+
+    def requires_restart(self) -> bool:
+        return self._requires_restart
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────

@@ -7,6 +7,7 @@ Tests cover:
 - download_update() downloads and verifies SHA-256 hash
 - download_update() raises AuthError on hash mismatch
 - download_update() raises AuthError on signature mismatch (Ed25519)
+- download_update() raises TransientError on HTTP 5xx
 - apply_update() raises PermanentError for unsupported platforms
 - rollback() raises PermanentError (not implemented in MVP)
 - apply_update() can be mocked via platform-specific sub-adapter
@@ -28,7 +29,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from core_infrastructure.common.errors import AuthError, PermanentError
+from core_infrastructure.common.errors import AuthError, PermanentError, TransientError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.update.models import UpdateConfig
 from core_infrastructure.update.ports import (
@@ -455,6 +456,97 @@ class TestDownloadUpdate:
         )
 
         with pytest.raises(AuthError, match="signature"):
+            await adapter.download_update(app_id="test-app", release=release)
+
+
+    @pytest.mark.asyncio
+    async def test_raises_transient_error_on_5xx(
+        self, adapter, mock_api
+    ) -> None:
+        """download_update raises TransientError when server returns 5xx."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"unused"),
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=502,
+            body=b"server-error",
+        )
+
+        with pytest.raises(TransientError):
+            await adapter.download_update(app_id="test-app", release=release)
+
+    @pytest.mark.asyncio
+    async def test_raises_permanent_error_on_4xx(
+        self, adapter, mock_api
+    ) -> None:
+        """download_update raises PermanentError when server returns 4xx."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"unused"),
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=403,
+            body=b"Forbidden",
+        )
+
+        with pytest.raises(PermanentError):
             await adapter.download_update(app_id="test-app", release=release)
 
 

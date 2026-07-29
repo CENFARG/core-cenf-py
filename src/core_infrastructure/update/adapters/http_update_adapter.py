@@ -22,7 +22,7 @@ from typing import Any
 
 from packaging.version import Version
 
-from core_infrastructure.common.errors import AuthError, PermanentError
+from core_infrastructure.common.errors import AuthError, PermanentError, TransientError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.external_api.ports import ExternalAPIManager
 from core_infrastructure.update.adapters.http_update_adapter_helpers import (
@@ -170,6 +170,11 @@ class HttpUpdateAdapter:
         # Download the artifact
         response: ApiResponse = await self._api.get(url=selected.url())
         if response.status_code != 200:
+            if response.status_code >= 500:
+                raise TransientError(
+                    f"Failed to download artifact from {selected.url()}: "
+                    f"HTTP {response.status_code}"
+                )
             raise PermanentError(
                 f"Failed to download artifact from {selected.url()}: "
                 f"HTTP {response.status_code}"

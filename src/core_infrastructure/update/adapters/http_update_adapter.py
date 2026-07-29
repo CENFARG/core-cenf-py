@@ -203,7 +203,7 @@ class HttpUpdateAdapter:
     ) -> UpdateResult:
         """Apply the update using platform-specific mechanisms.
 
-        Not fully implemented in MVP — raises NotImplementedError for
+        Not fully implemented in MVP — raises PermanentError for
         unsupported platforms. Platform-specific sub-adapters handle
         the actual installation.
 
@@ -215,9 +215,9 @@ class HttpUpdateAdapter:
             UpdateResult: The result of the update application.
 
         Raises:
-            NotImplementedError: Always in the MVP adapter.
+            PermanentError: Always in the MVP adapter.
         """
-        raise NotImplementedError(
+        raise PermanentError(
             f"apply_update not implemented for platform '{self._platform}'. "
             "Use a platform-specific sub-adapter."
         )
@@ -232,9 +232,9 @@ class HttpUpdateAdapter:
             UpdateResult: The result of the rollback operation.
 
         Raises:
-            NotImplementedError: Not yet implemented in the MVP.
+            PermanentError: Not yet implemented in the MVP.
         """
-        raise NotImplementedError(
+        raise PermanentError(
             "rollback not yet implemented in HttpUpdateAdapter"
         )
 

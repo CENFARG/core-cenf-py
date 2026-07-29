@@ -7,7 +7,8 @@ Tests cover:
 - download_update() downloads and verifies SHA-256 hash
 - download_update() raises AuthError on hash mismatch
 - download_update() raises AuthError on signature mismatch (Ed25519)
-- apply_update() raises NotImplementedError for unsupported platforms
+- apply_update() raises PermanentError for unsupported platforms
+- rollback() raises PermanentError (not implemented in MVP)
 - apply_update() can be mocked via platform-specific sub-adapter
 - Channel filtering (stable, beta, canary)
 - get_json_schema() returns a dict
@@ -27,7 +28,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from core_infrastructure.common.errors import AuthError
+from core_infrastructure.common.errors import AuthError, PermanentError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.update.models import UpdateConfig
 from core_infrastructure.update.ports import (
@@ -463,15 +464,26 @@ class TestApplyUpdate:
     """Tests for apply_update()."""
 
     @pytest.mark.asyncio
-    async def test_raises_not_implemented_error(self, adapter, ed25519_keypair) -> None:
-        """apply_update raises NotImplementedError for unsupported platforms."""
+    async def test_raises_permanent_error(self, adapter, ed25519_keypair) -> None:
+        """apply_update raises PermanentError for unsupported platforms."""
         from unittest.mock import MagicMock
 
         artifact = MagicMock(spec=UpdateArtifact)
 
-        # Delegate to platform handler — raises NotImplementedError
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(PermanentError):
             await adapter.apply_update(app_id="test-app", artifact=artifact)
+
+
+# ── rollback ─────────────────────────────────────────────────────────────────
+
+class TestRollback:
+    """Tests for rollback()."""
+
+    @pytest.mark.asyncio
+    async def test_raises_permanent_error(self, adapter) -> None:
+        """rollback raises PermanentError (not implemented in MVP)."""
+        with pytest.raises(PermanentError):
+            await adapter.rollback(app_id="test-app")
 
 
 # ── Protocol compliance ─────────────────────────────────────────────────────

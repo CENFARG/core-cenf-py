@@ -7,7 +7,9 @@ Tests cover:
 - download_update() downloads and verifies SHA-256 hash
 - download_update() raises AuthError on hash mismatch
 - download_update() raises AuthError on signature mismatch (Ed25519)
-- apply_update() raises NotImplementedError for unsupported platforms
+- download_update() raises TransientError on HTTP 5xx
+- apply_update() raises PermanentError for unsupported platforms
+- rollback() raises PermanentError (not implemented in MVP)
 - apply_update() can be mocked via platform-specific sub-adapter
 - Channel filtering (stable, beta, canary)
 - get_json_schema() returns a dict
@@ -27,7 +29,7 @@ import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from core_infrastructure.common.errors import AuthError
+from core_infrastructure.common.errors import AuthError, PermanentError, TransientError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.update.models import UpdateConfig
 from core_infrastructure.update.ports import (
@@ -160,6 +162,7 @@ class TestCheckForUpdates:
                     "kind": "installer",
                     "hash": "a" * 64,
                     "signature": None,
+                    "size_bytes": 1048576,
                 }
             ],
         }
@@ -269,7 +272,10 @@ class TestDownloadUpdate:
                 return "1.1.0"
 
             def channel(self) -> Channel:
-                return "stable"
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
 
             def artifacts(self) -> list:
                 return [
@@ -280,6 +286,7 @@ class TestDownloadUpdate:
                             "arch": "x64",
                             "kind": "installer",
                             "hash": expected_hash,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -314,7 +321,10 @@ class TestDownloadUpdate:
                 return "1.1.0"
 
             def channel(self) -> Channel:
-                return "stable"
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
 
             def artifacts(self) -> list:
                 return [
@@ -325,6 +335,7 @@ class TestDownloadUpdate:
                             "arch": "x64",
                             "kind": "installer",
                             "hash": "b" * 64,  # wrong hash
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -362,6 +373,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -372,6 +386,7 @@ class TestDownloadUpdate:
                             "kind": "installer",
                             "hash": expected_hash,
                             "signature": signature,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -413,6 +428,9 @@ class TestDownloadUpdate:
             def channel(self) -> Channel:
                 return "stable"
 
+            def release_notes_url(self) -> str | None:
+                return None
+
             def artifacts(self) -> list:
                 return [
                     _ArtifactWrapper(
@@ -423,6 +441,7 @@ class TestDownloadUpdate:
                             "kind": "installer",
                             "hash": expected_hash,
                             "signature": tampered_sig,
+                            "size_bytes": 1048576,
                         })
                     )
                 ]
@@ -440,21 +459,123 @@ class TestDownloadUpdate:
             await adapter.download_update(app_id="test-app", release=release)
 
 
+    @pytest.mark.asyncio
+    async def test_raises_transient_error_on_5xx(
+        self, adapter, mock_api
+    ) -> None:
+        """download_update raises TransientError when server returns 5xx."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"unused"),
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=502,
+            body=b"server-error",
+        )
+
+        with pytest.raises(TransientError):
+            await adapter.download_update(app_id="test-app", release=release)
+
+    @pytest.mark.asyncio
+    async def test_raises_permanent_error_on_4xx(
+        self, adapter, mock_api
+    ) -> None:
+        """download_update raises PermanentError when server returns 4xx."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "beta"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"unused"),
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=403,
+            body=b"Forbidden",
+        )
+
+        with pytest.raises(PermanentError):
+            await adapter.download_update(app_id="test-app", release=release)
+
+
 # ── apply_update ────────────────────────────────────────────────────────────
 
 class TestApplyUpdate:
     """Tests for apply_update()."""
 
     @pytest.mark.asyncio
-    async def test_raises_not_implemented_error(self, adapter, ed25519_keypair) -> None:
-        """apply_update raises NotImplementedError for unsupported platforms."""
+    async def test_raises_permanent_error(self, adapter, ed25519_keypair) -> None:
+        """apply_update raises PermanentError for unsupported platforms."""
         from unittest.mock import MagicMock
 
         artifact = MagicMock(spec=UpdateArtifact)
 
-        # Delegate to platform handler — raises NotImplementedError
-        with pytest.raises(NotImplementedError):
+        with pytest.raises(PermanentError):
             await adapter.apply_update(app_id="test-app", artifact=artifact)
+
+
+# ── rollback ─────────────────────────────────────────────────────────────────
+
+class TestRollback:
+    """Tests for rollback()."""
+
+    @pytest.mark.asyncio
+    async def test_raises_permanent_error(self, adapter) -> None:
+        """rollback raises PermanentError (not implemented in MVP)."""
+        with pytest.raises(PermanentError):
+            await adapter.rollback(app_id="test-app")
 
 
 # ── Protocol compliance ─────────────────────────────────────────────────────
@@ -477,6 +598,58 @@ class TestGetJsonSchema:
         schema = adapter.get_json_schema()
         assert isinstance(schema, dict)
         assert len(schema) > 0
+
+
+# ── Ed25519 signature on stable channel ────────────────────────────────────
+
+class TestEd25519SignatureVerification:
+    """Tests for Ed25519 signature verification in download_update()."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_unsigned_artifact_on_stable_channel(
+        self, adapter, mock_api, ed25519_keypair
+    ) -> None:
+        """download_update raises AuthError when artifact on stable has no signature."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "stable"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"fake-data"),
+                            "signature": None,
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=b"fake-data",
+        )
+
+        with pytest.raises(AuthError, match=r"(?i)unsigned artifact"):
+            await adapter.download_update(app_id="test-app", release=release)
 
 
 # ── Helper for constructing ArtifactMeta from dict ──────────────────────────
@@ -515,3 +688,7 @@ class ArtifactMeta:
     @property
     def signature(self) -> str | None:
         return self._data.get("signature")
+
+    @property
+    def size_bytes(self) -> int:
+        return self._data.get("size_bytes", 1048576)

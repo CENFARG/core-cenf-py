@@ -42,6 +42,7 @@ class _UpdateResult:
         success: bool,
         new_version: str | None = None,
         error: str | None = None,
+        requires_restart: bool = False,
     ) -> None:
         """Initialize the result.
 
@@ -49,10 +50,12 @@ class _UpdateResult:
             success: Whether the operation succeeded.
             new_version: The version after the operation, or None.
             error: Error description on failure, or None.
+            requires_restart: Whether a restart is required.
         """
         self._success = success
         self._new_version = new_version
         self._error = error
+        self._requires_restart = requires_restart
 
     def success(self) -> bool:
         """Return whether the operation succeeded."""
@@ -65,6 +68,10 @@ class _UpdateResult:
     def error(self) -> str | None:
         """Return the error description, or None on success."""
         return self._error
+
+    def requires_restart(self) -> bool:
+        """Return whether a restart is required."""
+        return self._requires_restart
 
 
 def _detect_platform() -> str:
@@ -226,7 +233,13 @@ class InMemoryUpdateAdapter:
             UpdateResult: Success or failure result.
         """
         previous = await self.get_current_version(app_id=app_id)
-        previous_hash = self._current_hashes.get(app_id, artifact.hash())
+        # previous_hash is the expected hash at rollback time — always the
+        # artifact being applied, NOT the prior stored hash. Using the prior
+        # hash caused BUG 5: on second apply_update with a different artifact,
+        # _current_hashes held the FIRST artifact's hash, making rollback
+        # compare the second artifact's hash against the first artifact's hash
+        # and always fail with a mismatch.
+        previous_hash = artifact.hash()
 
         # Save rollback state BEFORE attempting apply
         self._rollback_states[app_id] = RollbackState(
@@ -284,8 +297,10 @@ class InMemoryUpdateAdapter:
             )
 
         # Verify rollback integrity: current hash must match stored hash
+        # previous_hash stores the expected hash at rollback time (artifact.hash()),
+        # so a mismatch means someone or something tampered with the state
         current_hash = self._current_hashes.get(app_id, "")
-        if current_hash != state.previous_hash and self._current_versions.get(app_id) != state.previous_version:
+        if current_hash != state.previous_hash:
             raise PermanentError(
                 "Rollback hash mismatch: the current state does not "
                 "match the expected rollback state",

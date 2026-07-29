@@ -106,6 +106,11 @@ class ArtifactMeta(BaseModel):
         max_length=512,
         description="Ed25519 base64-encoded signature, or None if unsigned.",
     )
+    size_bytes: int = Field(
+        ...,
+        gt=0,
+        description="Size of the artifact in bytes.",
+    )
 
 
 class ReleaseMetadata(BaseModel):
@@ -135,9 +140,8 @@ class ReleaseMetadata(BaseModel):
         ...,
         description="Update channel (stable, beta, canary).",
     )
-    release_notes_url: str = Field(
-        ...,
-        min_length=1,
+    release_notes_url: str | None = Field(
+        default=None,
         max_length=2048,
         description="URL to release notes for this version.",
     )
@@ -149,6 +153,11 @@ class ReleaseMetadata(BaseModel):
         default=None,
         pattern=r"^\d+\.\d+\.\d+",
         description="Minimum version required to upgrade to this release.",
+    )
+    published_at: float | None = Field(
+        default=None,
+        gt=0,
+        description="Unix timestamp when this release was published.",
     )
 
 

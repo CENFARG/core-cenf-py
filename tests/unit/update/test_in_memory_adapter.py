@@ -11,6 +11,7 @@ Tests cover:
 - apply_update() returns success UpdateResult
 - rollback() restores previous version
 - rollback() raises when no rollback state exists
+- rollback() fails on hash mismatch even when version matches previous
 - get_json_schema() returns a dict
 - Multiple update + rollback cycles work correctly
 
@@ -56,6 +57,7 @@ class _Artifact:
         kind: str,
         hash: str,
         signature: str | None = None,
+        size_bytes: int = 1048576,
     ) -> None:
         self._url = url
         self._platform = platform
@@ -63,6 +65,7 @@ class _Artifact:
         self._kind = kind
         self._hash = hash
         self._signature = signature
+        self._size_bytes = size_bytes
 
     def url(self) -> str:
         return self._url
@@ -82,6 +85,9 @@ class _Artifact:
     def signature(self) -> str | None:
         return self._signature
 
+    def size_bytes(self) -> int:
+        return self._size_bytes
+
 
 class _Release:
     """Concrete AvailableRelease implementation."""
@@ -97,6 +103,7 @@ class _Release:
         self._channel = channel
         self._artifacts = artifacts
         self._metadata = metadata or {}
+        self._release_notes_url: str | None = self._metadata.get("release_notes_url", None)
 
     def version(self) -> str:
         return self._version
@@ -106,6 +113,9 @@ class _Release:
 
     def artifacts(self) -> list[_Artifact]:
         return self._artifacts
+
+    def release_notes_url(self) -> str | None:
+        return self._release_notes_url
 
     def metadata(self) -> dict:
         return self._metadata
@@ -119,10 +129,12 @@ class _Result:
         success: bool,
         new_version: str | None = None,
         error: str | None = None,
+        requires_restart: bool = False,
     ) -> None:
         self._success = success
         self._new_version = new_version
         self._error = error
+        self._requires_restart = requires_restart
 
     def success(self) -> bool:
         return self._success
@@ -132,6 +144,9 @@ class _Result:
 
     def error(self) -> str | None:
         return self._error
+
+    def requires_restart(self) -> bool:
+        return self._requires_restart
 
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
@@ -392,6 +407,75 @@ class TestApplyUpdate:
         assert rollback_result.success() is True
         assert rollback_result.new_version() == "1.0.0"
 
+    @pytest.mark.asyncio
+    async def test_multiple_applies_with_different_artifacts(
+        self, config
+    ) -> None:
+        """BUG 5: Second apply_update with different artifact must save correct hash.
+
+        Regression: _current_hashes.get(app_id, artifact.hash()) used the PRIOR
+        artifact's hash (from the first apply) as previous_hash on the second
+        apply. This caused rollback after the second apply to fail with a hash
+        mismatch, because the rollback check compared the second artifact's hash
+        against the first artifact's hash.
+
+        Fix: always set previous_hash = artifact.hash() — the expected hash at
+        rollback time is the artifact being applied, not the prior state.
+        """
+        from core_infrastructure.update.adapters.in_memory_update_adapter import (
+            InMemoryUpdateAdapter,
+        )
+
+        artifact_v1 = _Artifact(
+            url="https://example.com/cenf-1.1.0.exe",
+            platform=_current_platform(),
+            arch="x64",
+            kind="installer",
+            hash="a" * 64,
+        )
+        artifact_v2 = _Artifact(
+            url="https://example.com/cenf-2.0.0.exe",
+            platform=_current_platform(),
+            arch="x64",
+            kind="installer",
+            hash="b" * 64,
+        )
+
+        adapter = InMemoryUpdateAdapter(config=config)
+        adapter.add_release(
+            "stable",
+            _Release(
+                version="1.1.0",
+                channel="stable",
+                artifacts=[artifact_v1],
+            ),
+        )
+        adapter.add_release(
+            "stable2",
+            _Release(
+                version="2.0.0",
+                channel="stable",
+                artifacts=[artifact_v2],
+            ),
+        )
+
+        # First apply — artifact_v1 (hash "a"*64)
+        result1 = await adapter.apply_update(
+            app_id="multi-app", artifact=artifact_v1
+        )
+        assert result1.success() is True
+
+        # Second apply — artifact_v2 (hash "b"*64, DIFFERENT hash)
+        result2 = await adapter.apply_update(
+            app_id="multi-app", artifact=artifact_v2
+        )
+        assert result2.success() is True
+
+        # Rollback from second apply — MUST succeed (BUG 5 fix)
+        rollback_result = await adapter.rollback(app_id="multi-app")
+        assert rollback_result.success() is True
+        assert rollback_result.new_version() == "1.1.0"
+
 
 # ── rollback ────────────────────────────────────────────────────────────────
 
@@ -490,6 +574,32 @@ class TestRollbackHashIntegrity:
         # Tamper with the rollback state hash
         adapter._tamper_rollback_hash("test-app", "0" * 64)
 
+        with pytest.raises(PermanentError, match=r"hash"):
+            await adapter.rollback(app_id="test-app")
+
+    @pytest.mark.asyncio
+    async def test_rollback_fails_when_hash_tampered_and_version_reset(
+        self, adapter, artifact_win
+    ) -> None:
+        """rollback raises PermanentError when hash tampered even if version matches previous.
+
+        Regression test for BUG 4: integrity check used `and` instead of `or`,
+        meaning if an attacker reset the version to match the rollback state
+        while the hash was corrupted, the check would silently pass.
+        """
+        # Apply an update first to create rollback state
+        await adapter.apply_update(app_id="test-app", artifact=artifact_win)
+        # Now _current_versions["test-app"] = "1.1.0"
+        # Rollback state: previous_version="1.0.0", previous_hash=hash_of_1.1.0
+
+        # Reset the current version to match the rollback's previous_version
+        adapter._current_versions["test-app"] = "1.0.0"
+
+        # Tamper the rollback hash to simulate corruption
+        adapter._tamper_rollback_hash("test-app", "0" * 64)
+
+        # With the `and` bug this would NOT raise (hash differs but version matches)
+        # With `or` fix this correctly raises
         with pytest.raises(PermanentError, match=r"hash"):
             await adapter.rollback(app_id="test-app")
 

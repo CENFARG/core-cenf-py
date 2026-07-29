@@ -86,6 +86,14 @@ class UpdateArtifact(Protocol):
         """
         ...
 
+    def size_bytes(self) -> int:
+        """Return the size of the artifact in bytes.
+
+        Returns:
+            int: The artifact size in bytes.
+        """
+        ...
+
 
 @runtime_checkable
 class AvailableRelease(Protocol):
@@ -133,6 +141,14 @@ class AvailableRelease(Protocol):
         """
         ...
 
+    def release_notes_url(self) -> str | None:
+        """Return the URL to release notes, or None if not available.
+
+        Returns:
+            str | None: The release notes URL, or None.
+        """
+        ...
+
 
 @runtime_checkable
 class UpdateResult(Protocol):
@@ -167,6 +183,14 @@ class UpdateResult(Protocol):
 
         Returns:
             str | None: Human-readable error, or None on success.
+        """
+        ...
+
+    def requires_restart(self) -> bool:
+        """Return whether a restart is required after the update.
+
+        Returns:
+            bool: True if the system needs to be restarted.
         """
         ...
 

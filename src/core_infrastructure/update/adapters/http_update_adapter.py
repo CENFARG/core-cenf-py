@@ -22,7 +22,7 @@ from typing import Any
 
 from packaging.version import Version
 
-from core_infrastructure.common.errors import PermanentError
+from core_infrastructure.common.errors import AuthError, PermanentError, TransientError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.external_api.ports import ExternalAPIManager
 from core_infrastructure.update.adapters.http_update_adapter_helpers import (
@@ -170,6 +170,11 @@ class HttpUpdateAdapter:
         # Download the artifact
         response: ApiResponse = await self._api.get(url=selected.url())
         if response.status_code != 200:
+            if response.status_code >= 500:
+                raise TransientError(
+                    f"Failed to download artifact from {selected.url()}: "
+                    f"HTTP {response.status_code}"
+                )
             raise PermanentError(
                 f"Failed to download artifact from {selected.url()}: "
                 f"HTTP {response.status_code}"
@@ -182,10 +187,16 @@ class HttpUpdateAdapter:
         # Verify SHA-256 hash
         verify_hash(raw_data, selected.hash())
 
-        # Verify Ed25519 signature if present
+        # Verify Ed25519 signature — required on stable channel
         signature_hex = selected.signature()
         if signature_hex:
             verify_signature(raw_data, signature_hex, self._config.public_key)
+        elif release.channel() == "stable":
+            raise AuthError(
+                "Unsigned artifact rejected: Ed25519 signature is required "
+                "on the stable channel",
+                details={"reason": "signature_missing"},
+            )
 
         return selected
 
@@ -197,7 +208,7 @@ class HttpUpdateAdapter:
     ) -> UpdateResult:
         """Apply the update using platform-specific mechanisms.
 
-        Not fully implemented in MVP — raises NotImplementedError for
+        Not fully implemented in MVP — raises PermanentError for
         unsupported platforms. Platform-specific sub-adapters handle
         the actual installation.
 
@@ -209,9 +220,9 @@ class HttpUpdateAdapter:
             UpdateResult: The result of the update application.
 
         Raises:
-            NotImplementedError: Always in the MVP adapter.
+            PermanentError: Always in the MVP adapter.
         """
-        raise NotImplementedError(
+        raise PermanentError(
             f"apply_update not implemented for platform '{self._platform}'. "
             "Use a platform-specific sub-adapter."
         )
@@ -226,9 +237,9 @@ class HttpUpdateAdapter:
             UpdateResult: The result of the rollback operation.
 
         Raises:
-            NotImplementedError: Not yet implemented in the MVP.
+            PermanentError: Not yet implemented in the MVP.
         """
-        raise NotImplementedError(
+        raise PermanentError(
             "rollback not yet implemented in HttpUpdateAdapter"
         )
 

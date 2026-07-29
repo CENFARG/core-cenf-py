@@ -270,7 +270,7 @@ class TestDownloadUpdate:
                 return "1.1.0"
 
             def channel(self) -> Channel:
-                return "stable"
+                return "beta"
 
             def release_notes_url(self) -> str | None:
                 return None
@@ -319,7 +319,7 @@ class TestDownloadUpdate:
                 return "1.1.0"
 
             def channel(self) -> Channel:
-                return "stable"
+                return "beta"
 
             def release_notes_url(self) -> str | None:
                 return None
@@ -494,6 +494,58 @@ class TestGetJsonSchema:
         schema = adapter.get_json_schema()
         assert isinstance(schema, dict)
         assert len(schema) > 0
+
+
+# ── Ed25519 signature on stable channel ────────────────────────────────────
+
+class TestEd25519SignatureVerification:
+    """Tests for Ed25519 signature verification in download_update()."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_unsigned_artifact_on_stable_channel(
+        self, adapter, mock_api, ed25519_keypair
+    ) -> None:
+        """download_update raises AuthError when artifact on stable has no signature."""
+        from core_infrastructure.update.adapters.http_update_adapter_helpers import (
+            ArtifactWrapper as _ArtifactWrapper,
+        )
+
+        class _ReleaseWrapper:
+            def version(self) -> str:
+                return "1.1.0"
+
+            def channel(self) -> Channel:
+                return "stable"
+
+            def release_notes_url(self) -> str | None:
+                return None
+
+            def artifacts(self) -> list:
+                return [
+                    _ArtifactWrapper(
+                        ArtifactMeta.from_dict({
+                            "url": "https://example.com/cenf-1.1.0.exe",
+                            "platform": _current_platform(),
+                            "arch": "x64",
+                            "kind": "installer",
+                            "hash": _compute_sha256(b"fake-data"),
+                            "signature": None,
+                            "size_bytes": 1048576,
+                        })
+                    )
+                ]
+
+            def metadata(self) -> dict:
+                return {}
+
+        release = _ReleaseWrapper()
+        mock_api.get.return_value = ApiResponse(
+            status_code=200,
+            body=b"fake-data",
+        )
+
+        with pytest.raises(AuthError, match=r"(?i)unsigned artifact"):
+            await adapter.download_update(app_id="test-app", release=release)
 
 
 # ── Helper for constructing ArtifactMeta from dict ──────────────────────────

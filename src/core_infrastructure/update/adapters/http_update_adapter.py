@@ -22,7 +22,7 @@ from typing import Any
 
 from packaging.version import Version
 
-from core_infrastructure.common.errors import PermanentError
+from core_infrastructure.common.errors import AuthError, PermanentError
 from core_infrastructure.external_api.models import ApiResponse
 from core_infrastructure.external_api.ports import ExternalAPIManager
 from core_infrastructure.update.adapters.http_update_adapter_helpers import (
@@ -182,10 +182,16 @@ class HttpUpdateAdapter:
         # Verify SHA-256 hash
         verify_hash(raw_data, selected.hash())
 
-        # Verify Ed25519 signature if present
+        # Verify Ed25519 signature — required on stable channel
         signature_hex = selected.signature()
         if signature_hex:
             verify_signature(raw_data, signature_hex, self._config.public_key)
+        elif release.channel() == "stable":
+            raise AuthError(
+                "Unsigned artifact rejected: Ed25519 signature is required "
+                "on the stable channel",
+                details={"reason": "signature_missing"},
+            )
 
         return selected
 

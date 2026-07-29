@@ -391,6 +391,7 @@ class TestReleaseMetadataModel:
                 arch="x64",
                 kind="installer",
                 hash="a" * 64,
+                size_bytes=1048576,
             )
         ]
         r = ReleaseMetadata(
@@ -439,6 +440,33 @@ class TestReleaseMetadataModel:
                 release_notes_url="https://example.com",
             )
 
+    def test_with_published_at(self) -> None:
+        """ReleaseMetadata accepts published_at timestamp."""
+        r = ReleaseMetadata(
+            version="1.1.0",
+            channel="stable",
+            release_notes_url="https://example.com/notes",
+            published_at=1234567890.0,
+        )
+        assert r.published_at == 1234567890.0
+
+    def test_published_at_defaults_to_none(self) -> None:
+        """ReleaseMetadata.published_at defaults to None."""
+        r = ReleaseMetadata(
+            version="1.1.0",
+            channel="stable",
+            release_notes_url="https://example.com/notes",
+        )
+        assert r.published_at is None
+
+    def test_release_notes_url_defaults_to_none(self) -> None:
+        """ReleaseMetadata.release_notes_url is optional (default None)."""
+        r = ReleaseMetadata(
+            version="1.1.0",
+            channel="stable",
+        )
+        assert r.release_notes_url is None
+
     def test_model_is_frozen(self) -> None:
         """ReleaseMetadata is frozen — attributes cannot be changed."""
         r = ReleaseMetadata(
@@ -463,6 +491,7 @@ class TestArtifactMetaModel:
             arch="x64",
             kind="installer",
             hash="a" * 64,
+            size_bytes=1048576,
         )
         assert a.url == "https://example.com/update.exe"
         assert a.platform == "windows"
@@ -470,6 +499,7 @@ class TestArtifactMetaModel:
         assert a.kind == "installer"
         assert a.hash == "a" * 64
         assert a.signature is None
+        assert a.size_bytes == 1048576
 
     def test_with_signature(self) -> None:
         """ArtifactMeta with signature field."""
@@ -480,6 +510,7 @@ class TestArtifactMetaModel:
             kind="archive",
             hash="b" * 64,
             signature="ed25519-sig-base64",
+            size_bytes=256000,
         )
         assert a.signature == "ed25519-sig-base64"
 
@@ -491,6 +522,7 @@ class TestArtifactMetaModel:
             arch="x64",
             kind="archive",
             hash="c" * 64,
+            size_bytes=512000,
         )
         assert a.platform == "linux"
 
@@ -502,6 +534,7 @@ class TestArtifactMetaModel:
             arch="x64",
             kind="delta",
             hash="d" * 64,
+            size_bytes=1024,
         )
         assert a.kind == "delta"
 
@@ -514,6 +547,7 @@ class TestArtifactMetaModel:
                 arch="x64",
                 kind="installer",
                 hash="a" * 64,
+                size_bytes=1024,
             )
 
     def test_invalid_arch_fails(self) -> None:
@@ -525,6 +559,7 @@ class TestArtifactMetaModel:
                 arch="x86",  # type: ignore[arg-type]
                 kind="installer",
                 hash="a" * 64,
+                size_bytes=1024,
             )
 
     def test_invalid_kind_fails(self) -> None:
@@ -536,6 +571,7 @@ class TestArtifactMetaModel:
                 arch="x64",
                 kind="patch",  # type: ignore[arg-type]
                 hash="a" * 64,
+                size_bytes=1024,
             )
 
     def test_hash_too_short_fails(self) -> None:
@@ -547,6 +583,7 @@ class TestArtifactMetaModel:
                 arch="x64",
                 kind="installer",
                 hash="short",
+                size_bytes=1024,
             )
 
     def test_empty_url_fails(self) -> None:
@@ -558,6 +595,7 @@ class TestArtifactMetaModel:
                 arch="x64",
                 kind="installer",
                 hash="a" * 64,
+                size_bytes=1024,
             )
 
     def test_model_is_frozen(self) -> None:
@@ -568,9 +606,46 @@ class TestArtifactMetaModel:
             arch="x64",
             kind="installer",
             hash="a" * 64,
+            size_bytes=1048576,
         )
         with pytest.raises(PydanticValidationError):
             a.url = "https://other.com"  # type: ignore[misc]
+
+    def test_with_size_bytes(self) -> None:
+        """ArtifactMeta accepts size_bytes."""
+        a = ArtifactMeta(
+            url="https://example.com/update.exe",
+            platform="windows",
+            arch="x64",
+            kind="installer",
+            hash="a" * 64,
+            size_bytes=1048576,
+        )
+        assert a.size_bytes == 1048576
+
+    def test_size_bytes_must_be_positive(self) -> None:
+        """ArtifactMeta.size_bytes must be > 0."""
+        with pytest.raises(PydanticValidationError):
+            ArtifactMeta(
+                url="https://example.com/update.exe",
+                platform="windows",
+                arch="x64",
+                kind="installer",
+                hash="a" * 64,
+                size_bytes=0,
+            )
+
+    def test_size_bytes_must_be_present(self) -> None:
+        """ArtifactMeta.size_bytes is required."""
+        with pytest.raises(PydanticValidationError):
+            ArtifactMeta(
+                url="https://example.com/update.exe",
+                platform="windows",
+                arch="x64",
+                kind="installer",
+                hash="a" * 64,
+                # size_bytes omitted
+            )
 
 
 # ── RollbackState model ────────────────────────────────────────────────────
